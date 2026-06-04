@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Share2, X, Loader2, Download } from "lucide-react";
 import { useFolio } from "@/lib/store";
 import { usePortfolio } from "@/hooks/usePortfolio";
@@ -10,7 +11,9 @@ import { dailyReturns } from "@/lib/performance";
 import { computeMetrics } from "@/lib/metrics";
 import { pickMessage } from "@/lib/messages";
 import { captureNode, shareOrDownload } from "@/lib/share";
+import { relevantBenchmarks, buildComparison } from "@/lib/benchmark";
 import { PerformanceChart } from "@/components/PerformanceChart";
+import { BenchmarkChart } from "@/components/BenchmarkChart";
 import { MetricsPanel } from "@/components/MetricsPanel";
 import { ShareCard } from "@/components/ShareCard";
 import { Money } from "@/components/Money";
@@ -60,6 +63,28 @@ export default function PerformancePage() {
     );
     return { sliced, ret, metrics, absChange };
   }, [points, tf, settings.riskFreeRate]);
+
+  // context-aware benchmarks (only what the user actually holds)
+  const benchmarks = useMemo(() => relevantBenchmarks(assets), [assets]);
+  const benchSymbols = benchmarks.map((b) => b.symbol).join(",");
+  const benchQ = useQuery({
+    queryKey: ["benchmarks", benchSymbols],
+    queryFn: async () => {
+      if (!benchSymbols) return { series: {} };
+      const r = await fetch(
+        `/api/history?symbols=${encodeURIComponent(benchSymbols)}&range=5y`,
+      );
+      if (!r.ok) throw new Error(`benchmarks ${r.status}`);
+      return r.json();
+    },
+    enabled: benchSymbols.length > 0,
+    staleTime: 3600_000,
+    refetchOnWindowFocus: false,
+  });
+  const comparison = useMemo(
+    () => buildComparison(view.sliced, benchQ.data?.series ?? {}, benchmarks),
+    [view.sliced, benchQ.data, benchmarks],
+  );
 
   const positive = view.ret.cumulative >= 0;
   const leveraged = snapshot.positions.some((p) => p.leverage > 1.0001);
@@ -138,6 +163,14 @@ export default function PerformancePage() {
       </Card>
 
       <MetricsPanel m={view.metrics} />
+
+      <BenchmarkChart
+        data={comparison.data}
+        benchmarks={benchmarks}
+        summary={comparison.summary}
+        portReturn={comparison.portReturn}
+        loading={benchQ.isLoading}
+      />
 
       {/* share modal */}
       {showShare && (
