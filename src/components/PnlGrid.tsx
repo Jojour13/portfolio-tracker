@@ -9,10 +9,11 @@ import { useFolio } from "@/lib/store";
 import { Card } from "./ui";
 import { cn } from "@/lib/utils";
 
-type Mode = "year" | "month" | "day";
+type Mode = "year" | "month" | "week" | "day";
 const MODES: { k: Mode; label: string }[] = [
   { k: "year", label: "Yearly" },
   { k: "month", label: "Monthly" },
+  { k: "week", label: "Weekly" },
   { k: "day", label: "Daily" },
 ];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -51,11 +52,24 @@ export function PnlGrid({
 }) {
   const censored = useFolio((s) => s.censored);
   const [mode, setMode] = useState<Mode>("month");
-  const fmt = (n: number) => (censored ? "•••" : compact(n));
+  const fmt = (n: number) => (censored ? "***" : compact(n));
 
   const dMap = useMemo(() => dailyMap(points), [points]);
-  const years = useMemo(() => aggregate(dailyPnl(points), "year"), [points]);
-  const months = useMemo(() => aggregate(dailyPnl(points), "month"), [points]);
+  const daily = useMemo(() => dailyPnl(points), [points]);
+  // years filled to the current year, so 2027+ appear automatically
+  const years = useMemo(() => {
+    const agg = aggregate(daily, "year");
+    if (!agg.length) return agg;
+    const map = new Map(agg.map((y) => [+y.key, y.pnl]));
+    const minY = Math.min(...map.keys());
+    const maxY = Math.max(new Date().getUTCFullYear(), ...map.keys());
+    const out: { key: string; pnl: number }[] = [];
+    for (let y = minY; y <= maxY; y++)
+      out.push({ key: String(y), pnl: map.get(y) ?? 0 });
+    return out;
+  }, [daily]);
+  const months = useMemo(() => aggregate(daily, "month"), [daily]);
+  const weeks = useMemo(() => aggregate(daily, "week"), [daily]);
 
   // available months (YYYY-MM) for the daily calendar
   const monthKeys = useMemo(() => months.map((m) => m.key), [months]);
@@ -98,6 +112,8 @@ export function PnlGrid({
         <YearView years={years} fmt={fmt} />
       ) : mode === "month" ? (
         <MonthView months={months} fmt={fmt} />
+      ) : mode === "week" ? (
+        <WeekView weeks={weeks} fmt={fmt} />
       ) : (
         <DayView
           monthKey={activeMonth}
@@ -160,6 +176,31 @@ function YearView({
         <div key={y.key} className="w-28">
           <Box label={y.key} pnl={y.pnl} maxAbs={maxAbs} fmt={fmt} size="lg" />
         </div>
+      ))}
+    </div>
+  );
+}
+
+function WeekView({
+  weeks,
+  fmt,
+}: {
+  weeks: { key: string; label: string; pnl: number }[];
+  fmt: (n: number) => string;
+}) {
+  const recent = weeks.slice(-21);
+  const maxAbs = Math.max(1, ...recent.map((w) => Math.abs(w.pnl)));
+  return (
+    <div className="grid grid-cols-3 gap-2 sm:grid-cols-7">
+      {recent.map((w) => (
+        <Box
+          key={w.key}
+          label={w.label.replace("Wk ", "")}
+          pnl={w.pnl}
+          maxAbs={maxAbs}
+          fmt={fmt}
+          size="sm"
+        />
       ))}
     </div>
   );

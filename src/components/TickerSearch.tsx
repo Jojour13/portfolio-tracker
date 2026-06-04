@@ -84,7 +84,7 @@ export function TickerSearch({
       </div>
 
       {open && results.length > 0 && (
-        <div className="absolute z-40 mt-1.5 max-h-72 w-full overflow-auto rounded-xl border border-zinc-700 bg-zinc-900 p-1 shadow-2xl shadow-black/40">
+        <div className="absolute z-50 mt-1.5 max-h-72 w-full overflow-auto rounded-xl border border-zinc-700 bg-zinc-900 p-1 shadow-2xl shadow-black/40">
           {results.map((r) => (
             <button
               key={`${r.quoteSource}-${r.quoteId}`}

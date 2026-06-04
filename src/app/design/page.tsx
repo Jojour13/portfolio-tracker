@@ -2,6 +2,7 @@
 
 import { useFolio } from "@/lib/store";
 import { ModelBuilder } from "@/components/ModelBuilder";
+import { CashConverter } from "@/components/CashConverter";
 
 export default function DesignPage() {
   const hydrated = useFolio((s) => s.hydrated);
@@ -20,6 +21,7 @@ export default function DesignPage() {
         </p>
       </div>
       <ModelBuilder />
+      <CashConverter />
     </div>
   );
 }

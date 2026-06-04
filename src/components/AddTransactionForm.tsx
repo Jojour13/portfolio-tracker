@@ -1,16 +1,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, AlertTriangle } from "lucide-react";
 import type { SearchResult } from "@/app/api/search/route";
-import type { AssetType, Currency, TxnSide } from "@/lib/types";
+import type { Asset, AssetType, Currency, TxnSide } from "@/lib/types";
 import { CURRENCIES } from "@/lib/types";
 import { useFolio } from "@/lib/store";
+import { usePrices } from "@/hooks/usePrices";
 import { TickerSearch } from "./TickerSearch";
 import { Button, Card, Input, Label, Select } from "./ui";
 import { cn } from "@/lib/utils";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatNumber } from "@/lib/format";
+
+// How far a same-day entry price may stray from the live market before we block.
+const PRICE_TOLERANCE = 0.25;
 
 type Tab = AssetType;
 
@@ -18,6 +22,8 @@ export function AddTransactionForm() {
   const router = useRouter();
   const upsertAsset = useFolio((s) => s.upsertAsset);
   const addTransaction = useFolio((s) => s.addTransaction);
+  const assets = useFolio((s) => s.assets);
+  const transactions = useFolio((s) => s.transactions);
 
   const [tab, setTab] = useState<Tab>("crypto");
   const [picked, setPicked] = useState<SearchResult | null>(null);
@@ -44,9 +50,57 @@ export function AddTransactionForm() {
   const priceNum = isCash ? 1 : parseFloat(price) || 0;
   const total = realQty * priceNum + (parseFloat(fee) || 0);
 
+  // --- current holding of the picked asset (for sell-max) ---
+  const existingAsset = picked
+    ? assets.find((a) => a.quoteId === picked.quoteId && a.type === picked.type)
+    : null;
+  const heldQty = existingAsset
+    ? transactions
+        .filter((t) => t.assetId === existingAsset.id)
+        .reduce((q, t) => q + (t.side === "buy" ? t.quantity : -t.quantity), 0)
+    : 0;
+  const heldDisplay = usesLots ? heldQty / lotSize : heldQty;
+
+  // --- live market price, for the sanity check ---
+  const priceAssets = useMemo<Asset[]>(
+    () =>
+      picked
+        ? [
+            {
+              id: "probe",
+              type: picked.type,
+              symbol: picked.symbol,
+              name: picked.name,
+              currency: picked.currency,
+              quoteSource: picked.quoteSource,
+              quoteId: picked.quoteId,
+              lotSize,
+            },
+          ]
+        : [],
+    [picked, lotSize],
+  );
+  const { quotes } = usePrices(priceAssets, 60);
+  const marketPrice = picked ? quotes[picked.quoteId]?.price ?? null : null;
+
+  // --- validation ---
+  const today = new Date().toISOString().slice(0, 10);
+  const entryIsRecent = date >= today; // today or a future date
+  const sellTooMuch = side === "sell" && !isCash && realQty > heldQty + 1e-9;
+  const priceDeviation =
+    !isCash && marketPrice && priceNum > 0
+      ? Math.abs(priceNum - marketPrice) / marketPrice
+      : 0;
+  const priceOutOfRange =
+    !isCash &&
+    entryIsRecent &&
+    marketPrice != null &&
+    priceNum > 0 &&
+    priceDeviation > PRICE_TOLERANCE;
+
   const canSubmit = isCash
     ? qtyNum > 0
-    : picked && qtyNum > 0 && priceNum > 0;
+    : picked && qtyNum > 0 && priceNum > 0 && !sellTooMuch && !priceOutOfRange;
 
   function resetPickerFor(t: Tab) {
     setTab(t);
@@ -182,33 +236,76 @@ export function AddTransactionForm() {
       {/* numeric inputs */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>
-            {isCash ? `Amount (${ccy})` : usesLots ? "Lots" : "Quantity"}
-          </Label>
+          <div className="mb-1.5 flex items-center justify-between">
+            <Label className="mb-0">
+              {isCash ? `Amount (${ccy})` : usesLots ? "Lots" : "Quantity"}
+            </Label>
+            {side === "sell" && !isCash && picked && heldQty > 0 && (
+              <button
+                type="button"
+                onClick={() => setQty(String(usesLots ? heldDisplay : heldQty))}
+                className="text-[11px] font-medium text-indigo-400 hover:underline"
+              >
+                Max {formatNumber(heldDisplay, usesLots ? 0 : 4)}
+              </button>
+            )}
+          </div>
           <Input
             type="number"
             inputMode="decimal"
             placeholder={usesLots ? "10" : "0.00"}
             value={qtyInput}
             onChange={(e) => setQty(e.target.value)}
+            className={sellTooMuch ? "border-rose-500" : undefined}
           />
           {usesLots && qtyNum > 0 && (
             <p className="mt-1 text-[11px] text-zinc-500">
               = {realQty.toLocaleString()} shares
             </p>
           )}
+          {sellTooMuch && (
+            <p className="mt-1 text-[11px] text-rose-400">
+              You only hold {formatNumber(heldDisplay, usesLots ? 0 : 4)}{" "}
+              {usesLots ? "lots" : "units"}.
+            </p>
+          )}
+          {side === "sell" && !isCash && picked && heldQty <= 0 && (
+            <p className="mt-1 text-[11px] text-rose-400">
+              You don&apos;t hold any {picked.symbol} to sell.
+            </p>
+          )}
         </div>
 
         {!isCash && (
           <div>
-            <Label>Price / unit ({ccy})</Label>
+            <div className="mb-1.5 flex items-center justify-between">
+              <Label className="mb-0">Price / unit ({ccy})</Label>
+              {marketPrice != null && (
+                <button
+                  type="button"
+                  onClick={() => setPrice(String(marketPrice))}
+                  className="text-[11px] font-medium text-indigo-400 hover:underline"
+                  title="Use the current market price"
+                >
+                  Mkt {formatMoney(marketPrice, ccy)}
+                </button>
+              )}
+            </div>
             <Input
               type="number"
               inputMode="decimal"
               placeholder="0.00"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
+              className={priceOutOfRange ? "border-rose-500" : undefined}
             />
+            {priceOutOfRange && marketPrice != null && (
+              <p className="mt-1 text-[11px] text-rose-400">
+                That&apos;s {(priceDeviation * 100).toFixed(0)}% off the market (
+                {formatMoney(marketPrice, ccy)}). Check the price, or back-date
+                the trade if it&apos;s historical.
+              </p>
+            )}
           </div>
         )}
 

@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import {
   Area,
   AreaChart,
+  ReferenceArea,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -28,6 +30,7 @@ export function PerformanceChart({
 }) {
   const censored = useFolio((s) => s.censored);
   const stroke = positive ? "#34d399" : "#f43f5e";
+  const [hoverX, setHoverX] = useState<string | null>(null);
 
   if (data.length < 2) {
     return (
@@ -42,7 +45,14 @@ export function PerformanceChart({
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={data} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
+      <AreaChart
+        data={data}
+        margin={{ top: 8, right: 4, left: 4, bottom: 0 }}
+        onMouseMove={(s: any) =>
+          setHoverX(s?.activeLabel ? String(s.activeLabel) : null)
+        }
+        onMouseLeave={() => setHoverX(null)}
+      >
         <defs>
           <linearGradient id="perfFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={stroke} stopOpacity={0.35} />
@@ -69,10 +79,20 @@ export function PerformanceChart({
           }}
           labelStyle={{ color: "#a1a1aa" }}
           formatter={(v: number) => [
-            censored ? "••••••" : formatMoney(v, base, { compact: true }),
+            censored ? "*****" : formatMoney(v, base, { compact: true }),
             "Value",
           ]}
         />
+        {hoverX && (
+          <ReferenceArea
+            x1={data[0].date}
+            x2={hoverX}
+            fill="#a1a1aa"
+            fillOpacity={0.1}
+            stroke="none"
+            ifOverflow="hidden"
+          />
+        )}
         <Area
           type="monotone"
           dataKey="value"

@@ -24,19 +24,14 @@ export function Money({
   className?: string;
 }) {
   const censored = useFolio((s) => s.censored);
-  const text = signed
-    ? formatSignedMoney(value, currency)
-    : formatMoney(value, currency, { compact });
+  const text = censored
+    ? "*****"
+    : signed
+      ? formatSignedMoney(value, currency)
+      : formatMoney(value, currency, { compact });
 
   return (
-    <span
-      className={cn(
-        "transition-[filter] duration-200",
-        censored && "select-none blur-[7px]",
-        className,
-      )}
-      aria-hidden={censored}
-    >
+    <span className={cn(censored && "select-none tracking-widest text-zinc-500", className)}>
       {text}
     </span>
   );

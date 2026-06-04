@@ -272,7 +272,7 @@ function AddRow({
   }
 
   return (
-    <Card className="p-4">
+    <Card className="relative z-30 overflow-visible p-4">
       <div className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-zinc-900/60 p-1">
         {TYPE_TABS.map((t) => (
           <button

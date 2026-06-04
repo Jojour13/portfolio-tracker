@@ -93,13 +93,13 @@ export default function SettingsPage() {
             onClick={() => {
               if (
                 confirm(
-                  "This REPLACES your current holdings and transactions with sample data. Your real entries will be lost. Continue?",
+                  "This REPLACES your current holdings and transactions with demo data. Your real entries will be lost. Continue?",
                 )
               )
                 resetSample();
             }}
           >
-            Load sample portfolio
+            Load demo data
           </Button>
           <Button
             variant="danger"
