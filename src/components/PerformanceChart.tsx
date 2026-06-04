@@ -18,11 +18,13 @@ export function PerformanceChart({
   base,
   positive,
   height = 240,
+  intraday = false,
 }: {
   data: SeriesPoint[];
   base: Currency;
   positive: boolean;
   height?: number;
+  intraday?: boolean;
 }) {
   const censored = useFolio((s) => s.censored);
   const stroke = positive ? "#34d399" : "#f43f5e";
@@ -53,7 +55,9 @@ export function PerformanceChart({
           tickLine={false}
           axisLine={false}
           minTickGap={48}
-          tickFormatter={(d: string) => d.slice(5)}
+          tickFormatter={(d: string) =>
+            intraday ? (d.split("T")[1] ?? d).slice(0, 5) : d.slice(5)
+          }
         />
         <YAxis hide domain={["dataMin", "dataMax"]} />
         <Tooltip

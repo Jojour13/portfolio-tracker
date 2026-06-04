@@ -6,7 +6,7 @@ export interface PeriodPnl {
   pnl: number;
 }
 
-export type Grouping = "day" | "week" | "month";
+export type Grouping = "day" | "week" | "month" | "year";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -34,11 +34,18 @@ export function dailyPnl(points: SeriesPoint[]): PeriodPnl[] {
   return out;
 }
 
+function keyFor(date: string, by: Grouping): string {
+  if (by === "year") return date.slice(0, 4);
+  if (by === "month") return date.slice(0, 7);
+  if (by === "week") return weekStart(date);
+  return date;
+}
+
 export function aggregate(daily: PeriodPnl[], by: Grouping): PeriodPnl[] {
   if (by === "day") return daily;
   const sums = new Map<string, number>();
   for (const d of daily) {
-    const key = by === "month" ? d.key.slice(0, 7) : weekStart(d.key);
+    const key = keyFor(d.key, by);
     sums.set(key, (sums.get(key) ?? 0) + d.pnl);
   }
   return [...sums.entries()]
@@ -46,11 +53,20 @@ export function aggregate(daily: PeriodPnl[], by: Grouping): PeriodPnl[] {
     .map(([key, pnl]) => ({
       key,
       label:
-        by === "month"
-          ? `${MONTHS[+key.slice(5, 7) - 1]} ${key.slice(0, 4)}`
-          : `Wk ${dayLabel(key)}`,
+        by === "year"
+          ? key
+          : by === "month"
+            ? `${MONTHS[+key.slice(5, 7) - 1]} ${key.slice(0, 4)}`
+            : `Wk ${dayLabel(key)}`,
       pnl,
     }));
+}
+
+/** date(YYYY-MM-DD) -> pnl map, for calendar rendering. */
+export function dailyMap(points: SeriesPoint[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const d of dailyPnl(points)) m.set(d.key, d.pnl);
+  return m;
 }
 
 /** Convenience: build the grouped series straight from points. */

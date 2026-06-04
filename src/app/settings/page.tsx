@@ -6,6 +6,7 @@ import { CURRENCIES, type Currency } from "@/lib/types";
 import { Card, Label, Select, Button } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import { RiskQuiz } from "@/components/RiskQuiz";
+import { AllocationDesigner } from "@/components/AllocationDesigner";
 
 export default function SettingsPage() {
   const hydrated = useFolio((s) => s.hydrated);
@@ -61,6 +62,8 @@ export default function SettingsPage() {
 
       <RiskQuiz />
 
+      <AllocationDesigner />
+
       {enabled && user && (
         <Card className="space-y-3 p-5">
           <h2 className="flex items-center gap-1.5 text-sm font-medium text-zinc-300">
@@ -84,7 +87,18 @@ export default function SettingsPage() {
             : "Your portfolio is saved locally in this browser. Connect Supabase (see README) to sync across devices."}
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={resetSample}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (
+                confirm(
+                  "This REPLACES your current holdings and transactions with sample data. Your real entries will be lost. Continue?",
+                )
+              )
+                resetSample();
+            }}
+          >
             Load sample portfolio
           </Button>
           <Button

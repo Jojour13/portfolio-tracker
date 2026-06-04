@@ -9,7 +9,7 @@ import { SummaryCards } from "@/components/SummaryCards";
 import { AllocationDonut } from "@/components/AllocationDonut";
 import { AllocationVsTarget } from "@/components/AllocationVsTarget";
 import { HoldingsTable } from "@/components/HoldingsTable";
-import { PnlPeriods } from "@/components/PnlPeriods";
+import { PnlGrid } from "@/components/PnlGrid";
 import { useHistory } from "@/hooks/useHistory";
 import { Card, Button } from "@/components/ui";
 import { cn, colorForIndex } from "@/lib/utils";
@@ -115,6 +115,7 @@ export default function DashboardPage() {
               <AllocationVsTarget
                 positions={snapshot.positions}
                 target={settings.targetAllocation}
+                base={base}
                 threshold={settings.rebalanceThreshold ?? 0.07}
               />
             </div>
@@ -125,7 +126,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <PnlPeriods points={points} base={base} loading={histLoading} />
+          <PnlGrid points={points} base={base} loading={histLoading} />
 
           <MessageBanner profit={snapshot.totalUnrealizedPnlBase >= 0} />
         </>

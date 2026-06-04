@@ -110,6 +110,65 @@ export function reconstructTimeSeries(
   return points;
 }
 
+/**
+ * Intraday value series for the 1D view. Holdings are treated as constant
+ * through the day (intraday trades are rare), so value at each 5-min bar is
+ * just current quantity marked to that bar's price. Keys are minute-resolution.
+ */
+export function reconstructIntraday(
+  assets: Asset[],
+  transactions: Transaction[],
+  series: Record<string, { t: number[]; c: number[] }>,
+  ratesPerUsd: Record<string, number>,
+  base: Currency,
+): SeriesPoint[] {
+  // current net quantity per asset
+  const qty = new Map<string, number>();
+  for (const t of transactions) {
+    const q = qty.get(t.assetId) ?? 0;
+    qty.set(t.assetId, q + (t.side === "buy" ? t.quantity : -t.quantity));
+  }
+
+  // union minute axis + per-asset close maps
+  const axis = new Set<string>();
+  const closeByAsset = new Map<string, Map<string, number>>();
+  for (const a of assets) {
+    const s = series[a.quoteId];
+    const m = new Map<string, number>();
+    if (a.type !== "cash" && s) {
+      for (let i = 0; i < s.t.length; i++) {
+        const k = new Date(s.t[i] * 1000).toISOString().slice(0, 16);
+        m.set(k, s.c[i]);
+        axis.add(k);
+      }
+    }
+    closeByAsset.set(a.id, m);
+  }
+
+  const keys = [...axis].sort();
+  if (!keys.length) return [];
+
+  const last = new Map<string, number>();
+  const points: SeriesPoint[] = [];
+  for (const k of keys) {
+    let value = 0;
+    for (const a of assets) {
+      const q = qty.get(a.id) ?? 0;
+      if (q === 0) continue;
+      let price: number;
+      if (a.type === "cash") price = 1;
+      else {
+        const m = closeByAsset.get(a.id)!;
+        if (m.has(k)) last.set(a.id, m.get(k)!);
+        price = last.get(a.id) ?? 0;
+      }
+      value += convert(q * price, a.currency, base, ratesPerUsd);
+    }
+    points.push({ date: k, value, flow: 0 });
+  }
+  return points;
+}
+
 /** Slice the series to a trailing window (days) or 'ytd'/'all'. */
 export function sliceWindow(points: SeriesPoint[], tf: string): SeriesPoint[] {
   if (!points.length) return points;
