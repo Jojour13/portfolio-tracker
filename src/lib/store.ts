@@ -5,6 +5,7 @@ import { persist } from "zustand/middleware";
 import type {
   Asset,
   Currency,
+  ModelHolding,
   Settings,
   Transaction,
   TxnSide,
@@ -45,9 +46,15 @@ interface FolioState {
   hydrated: boolean;
   /** When true, all monetary amounts are blurred for screenshots in public. */
   censored: boolean;
+  /** A designed model/target portfolio (a plan, separate from real holdings). */
+  modelPortfolio: ModelHolding[];
 
   setHydrated: () => void;
   toggleCensor: () => void;
+  addModelHolding: (h: Omit<ModelHolding, "id">) => void;
+  updateModelQty: (id: string, qty: number) => void;
+  removeModelHolding: (id: string) => void;
+  clearModel: () => void;
   /** Find an existing asset by quoteId or create one, returning its id. */
   upsertAsset: (input: NewAssetInput) => string;
   addTransaction: (assetId: string, txn: NewTxnInput) => void;
@@ -98,9 +105,37 @@ export const useFolio = create<FolioState>()(
       settings: DEFAULT_SETTINGS,
       hydrated: false,
       censored: false,
+      modelPortfolio: [],
 
       setHydrated: () => set({ hydrated: true }),
       toggleCensor: () => set((s) => ({ censored: !s.censored })),
+
+      addModelHolding: (h) =>
+        set((s) => {
+          // merge into an existing same-asset row instead of duplicating
+          const i = s.modelPortfolio.findIndex(
+            (m) => m.quoteId === h.quoteId && m.type === h.type,
+          );
+          if (i >= 0) {
+            const next = [...s.modelPortfolio];
+            next[i] = { ...next[i], qty: next[i].qty + h.qty };
+            return { modelPortfolio: next };
+          }
+          return {
+            modelPortfolio: [...s.modelPortfolio, { id: "m-" + uid(), ...h }],
+          };
+        }),
+      updateModelQty: (id, qty) =>
+        set((s) => ({
+          modelPortfolio: s.modelPortfolio.map((m) =>
+            m.id === id ? { ...m, qty } : m,
+          ),
+        })),
+      removeModelHolding: (id) =>
+        set((s) => ({
+          modelPortfolio: s.modelPortfolio.filter((m) => m.id !== id),
+        })),
+      clearModel: () => set({ modelPortfolio: [] }),
 
       upsertAsset: (input) => {
         const existing = get().assets.find(

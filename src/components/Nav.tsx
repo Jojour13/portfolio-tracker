@@ -10,6 +10,7 @@ import {
   LogOut,
   Cloud,
   LineChart,
+  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -18,6 +19,7 @@ const LINKS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/performance", label: "Stats", icon: LineChart },
   { href: "/add", label: "Add", icon: PlusCircle },
+  { href: "/design", label: "Plan", icon: Target },
   { href: "/history", label: "History", icon: History },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -81,7 +83,7 @@ export function Nav() {
 
       {/* Mobile: bottom tab bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 border-t border-zinc-800 bg-zinc-950/90 backdrop-blur md:hidden">
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {LINKS.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
             return (

@@ -131,6 +131,23 @@ export interface PortfolioSnapshot {
   dayChangePct: number;
 }
 
+/**
+ * A holding in a *designed* model portfolio (a plan, not real trades).
+ * Structurally a superset of Asset, so it can reuse the price hooks.
+ */
+export interface ModelHolding {
+  id: string;
+  type: AssetType;
+  symbol: string;
+  name: string;
+  currency: Currency;
+  quoteSource: QuoteSource;
+  quoteId: string;
+  lotSize: number;
+  /** Shares/coins; for cash this is the amount in its currency. */
+  qty: number;
+}
+
 /** Live quote returned by our price API routes, normalised across providers. */
 export interface Quote {
   quoteId: string;
