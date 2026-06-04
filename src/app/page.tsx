@@ -7,7 +7,10 @@ import { usePortfolio } from "@/hooks/usePortfolio";
 import { useFolio } from "@/lib/store";
 import { SummaryCards } from "@/components/SummaryCards";
 import { AllocationDonut } from "@/components/AllocationDonut";
+import { AllocationVsTarget } from "@/components/AllocationVsTarget";
 import { HoldingsTable } from "@/components/HoldingsTable";
+import { PnlPeriods } from "@/components/PnlPeriods";
+import { useHistory } from "@/hooks/useHistory";
 import { Card, Button } from "@/components/ui";
 import { cn, colorForIndex } from "@/lib/utils";
 import { pickMessage } from "@/lib/messages";
@@ -16,8 +19,17 @@ export default function DashboardPage() {
   const hydrated = useFolio((s) => s.hydrated);
   const censored = useFolio((s) => s.censored);
   const toggleCensor = useFolio((s) => s.toggleCensor);
-  const { snapshot, base, isFetching, lastUpdated, refetch, hasData } =
+  const assets = useFolio((s) => s.assets);
+  const transactions = useFolio((s) => s.transactions);
+  const settings = useFolio((s) => s.settings);
+  const { snapshot, base, ratesPerUsd, isFetching, lastUpdated, refetch, hasData } =
     usePortfolio();
+  const { points, isLoading: histLoading } = useHistory(
+    assets,
+    transactions,
+    ratesPerUsd,
+    base,
+  );
 
   const [ago, setAgo] = useState("");
   useEffect(() => {
@@ -82,28 +94,38 @@ export default function DashboardPage() {
           <SummaryCards snapshot={snapshot} base={base} />
 
           <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-            <Card className="p-5">
-              <h2 className="mb-1 text-sm font-medium text-zinc-300">
-                Allocation
-              </h2>
-              <AllocationDonut snapshot={snapshot} base={base} />
-              <div className="mt-3 space-y-1.5">
-                {snapshot.positions.slice(0, 6).map((p, i) => (
-                  <Legend
-                    key={p.asset.id}
-                    i={i}
-                    label={p.asset.symbol}
-                    weight={p.weight}
-                  />
-                ))}
-              </div>
-            </Card>
+            <div className="space-y-5">
+              <Card className="p-5">
+                <h2 className="mb-1 text-sm font-medium text-zinc-300">
+                  Allocation
+                </h2>
+                <AllocationDonut snapshot={snapshot} base={base} />
+                <div className="mt-3 space-y-1.5">
+                  {snapshot.positions.slice(0, 6).map((p, i) => (
+                    <Legend
+                      key={p.asset.id}
+                      i={i}
+                      label={p.asset.symbol}
+                      weight={p.weight}
+                    />
+                  ))}
+                </div>
+              </Card>
+
+              <AllocationVsTarget
+                positions={snapshot.positions}
+                target={settings.targetAllocation}
+                threshold={settings.rebalanceThreshold ?? 0.07}
+              />
+            </div>
 
             <div className="space-y-3">
               <h2 className="text-sm font-medium text-zinc-300">Holdings</h2>
               <HoldingsTable positions={snapshot.positions} base={base} />
             </div>
           </div>
+
+          <PnlPeriods points={points} base={base} loading={histLoading} />
 
           <MessageBanner profit={snapshot.totalUnrealizedPnlBase >= 0} />
         </>

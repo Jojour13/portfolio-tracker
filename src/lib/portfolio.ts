@@ -109,6 +109,7 @@ export function valuePortfolio(
   quotes: Record<string, Quote>,
   ratesPerUsd: Record<string, number>,
   base: Currency,
+  realizedBase = 0,
 ): PortfolioSnapshot {
   const valued: ValuedPosition[] = positions.map((p) => {
     const isCash = p.asset.type === "cash";
@@ -196,6 +197,7 @@ export function valuePortfolio(
     totalUnrealizedPnlBase,
     totalUnrealizedPnlPct:
       totalInvestedBase > 0 ? totalUnrealizedPnlBase / totalInvestedBase : 0,
+    totalRealizedBase: realizedBase,
     dayChangeBase,
     dayChangePct:
       totalValueBase - dayChangeBase > 0

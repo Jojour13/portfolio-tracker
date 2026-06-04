@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useFolio } from "@/lib/store";
-import { buildPositions, valuePortfolio } from "@/lib/portfolio";
+import { buildPositions, valuePortfolio, convert } from "@/lib/portfolio";
 import { usePrices } from "./usePrices";
 
 /** The fully-valued portfolio snapshot, recomputed as prices stream in. */
@@ -19,16 +19,21 @@ export function usePortfolio() {
     [assets, transactions],
   );
 
-  const snapshot = useMemo(
-    () =>
-      valuePortfolio(
-        positions.filter((p) => p.quantity > 0),
-        quotes,
-        ratesPerUsd,
-        settings.baseCurrency,
-      ),
-    [positions, quotes, ratesPerUsd, settings.baseCurrency],
-  );
+  const snapshot = useMemo(() => {
+    // Realised P/L includes fully-closed positions, so sum across ALL of them.
+    const realizedBase = positions.reduce(
+      (s, p) =>
+        s + convert(p.realizedPnl, p.asset.currency, settings.baseCurrency, ratesPerUsd),
+      0,
+    );
+    return valuePortfolio(
+      positions.filter((p) => p.quantity > 0),
+      quotes,
+      ratesPerUsd,
+      settings.baseCurrency,
+      realizedBase,
+    );
+  }, [positions, quotes, ratesPerUsd, settings.baseCurrency]);
 
   return {
     snapshot,

@@ -5,6 +5,7 @@ import { useFolio } from "@/lib/store";
 import { CURRENCIES, type Currency } from "@/lib/types";
 import { Card, Label, Select, Button } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
+import { RiskQuiz } from "@/components/RiskQuiz";
 
 export default function SettingsPage() {
   const hydrated = useFolio((s) => s.hydrated);
@@ -57,6 +58,8 @@ export default function SettingsPage() {
           </Select>
         </div>
       </Card>
+
+      <RiskQuiz />
 
       {enabled && user && (
         <Card className="space-y-3 p-5">

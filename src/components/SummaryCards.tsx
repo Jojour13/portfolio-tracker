@@ -28,14 +28,14 @@ export function SummaryCards({
       color: "text-white",
     },
     {
-      label: "Today",
+      label: "1D P/L",
       icon: Activity,
       value: <Money value={snapshot.dayChangeBase} currency={base} signed />,
       sub: formatPercent(snapshot.dayChangePct),
       color: pnlColor(snapshot.dayChangeBase),
     },
     {
-      label: "Total P/L",
+      label: "Unrealized P/L",
       icon: TrendingUp,
       value: (
         <Money value={snapshot.totalUnrealizedPnlBase} currency={base} signed />
@@ -44,11 +44,13 @@ export function SummaryCards({
       color: pnlColor(snapshot.totalUnrealizedPnlBase),
     },
     {
-      label: "Invested",
+      label: "Realized P/L",
       icon: PiggyBank,
-      value: <Money value={snapshot.totalInvestedBase} currency={base} />,
-      sub: "Cost basis",
-      color: "text-zinc-200",
+      value: (
+        <Money value={snapshot.totalRealizedBase} currency={base} signed />
+      ),
+      sub: "Booked from sells",
+      color: pnlColor(snapshot.totalRealizedBase),
     },
   ];
 

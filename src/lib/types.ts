@@ -92,11 +92,31 @@ export interface ValuedPosition extends Position {
   weight: number;
 }
 
+export type RiskProfile =
+  | "conservative"
+  | "balanced"
+  | "growth"
+  | "aggressive"
+  | "custom";
+
+/** Target allocation by asset class (fractions that sum to 1). */
+export interface TargetAllocation {
+  crypto: number;
+  stock: number;
+  cash: number;
+}
+
 export interface Settings {
   baseCurrency: Currency;
   refreshIntervalSec: number;
   /** Annual risk-free rate for Sharpe (e.g. 0.0575 = BI 7-day repo). */
   riskFreeRate: number;
+  /** Chosen risk profile, set via the questionnaire. */
+  riskProfile?: RiskProfile;
+  /** Ideal allocation to rebalance toward. */
+  targetAllocation?: TargetAllocation;
+  /** Drift threshold (fraction) that triggers a rebalance signal. */
+  rebalanceThreshold?: number;
 }
 
 export interface PortfolioSnapshot {
@@ -105,6 +125,8 @@ export interface PortfolioSnapshot {
   totalInvestedBase: number;
   totalUnrealizedPnlBase: number;
   totalUnrealizedPnlPct: number;
+  /** Realised P/L from closed/partially-closed positions, base currency. */
+  totalRealizedBase: number;
   dayChangeBase: number;
   dayChangePct: number;
 }
