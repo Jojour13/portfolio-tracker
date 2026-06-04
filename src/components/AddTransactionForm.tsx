@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, AlertTriangle } from "lucide-react";
 import type { SearchResult } from "@/app/api/search/route";
 import type { AssetType, Currency, TxnSide } from "@/lib/types";
 import { CURRENCIES } from "@/lib/types";
@@ -28,7 +28,11 @@ export function AddTransactionForm() {
   const [fee, setFee] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState("");
+  const [margin, setMargin] = useState(false);
+  const [leverage, setLeverage] = useState("2");
   const [done, setDone] = useState(false);
+
+  const levNum = Math.max(1, parseFloat(leverage) || 1);
 
   const isCash = tab === "cash";
   const lotSize = picked?.lotSize ?? 1;
@@ -84,6 +88,8 @@ export function AddTransactionForm() {
       fee: parseFloat(fee) || 0,
       date,
       note: note || undefined,
+      margin: !isCash && margin ? true : undefined,
+      leverage: !isCash && margin ? levNum : undefined,
     });
 
     setDone(true);
@@ -226,6 +232,47 @@ export function AddTransactionForm() {
           />
         </div>
       </div>
+
+      {!isCash && (
+        <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <input
+              type="checkbox"
+              checked={margin}
+              onChange={(e) => setMargin(e.target.checked)}
+              className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 accent-amber-500"
+            />
+            <span className="text-sm font-medium text-zinc-200">
+              Use margin / leverage
+            </span>
+          </label>
+
+          {margin && (
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center gap-3">
+                <Label className="mb-0">Leverage</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min={1}
+                  step={0.5}
+                  className="h-9 w-24"
+                  value={leverage}
+                  onChange={(e) => setLeverage(e.target.value)}
+                />
+                <span className="text-sm font-semibold text-amber-400">
+                  {levNum}x
+                </span>
+              </div>
+              <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-400/90">
+                <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                Leverage multiplies losses as much as gains. A {levNum}x position
+                is liquidated by a ~{(100 / levNum).toFixed(0)}% move against you.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mt-3">
         <Label>Note (optional)</Label>

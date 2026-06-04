@@ -3,12 +3,8 @@
 import { TrendingUp, Wallet, Activity, PiggyBank } from "lucide-react";
 import type { Currency, PortfolioSnapshot } from "@/lib/types";
 import { Card } from "./ui";
-import {
-  formatMoney,
-  formatPercent,
-  formatSignedMoney,
-  pnlColor,
-} from "@/lib/format";
+import { Money } from "./Money";
+import { formatPercent, pnlColor } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export function SummaryCards({
@@ -22,28 +18,35 @@ export function SummaryCards({
     {
       label: "Total Value",
       icon: Wallet,
-      value: formatMoney(snapshot.totalValueBase, base),
-      sub: `Invested ${formatMoney(snapshot.totalInvestedBase, base, { compact: true })}`,
+      value: <Money value={snapshot.totalValueBase} currency={base} />,
+      sub: (
+        <>
+          Invested{" "}
+          <Money value={snapshot.totalInvestedBase} currency={base} compact />
+        </>
+      ),
       color: "text-white",
     },
     {
       label: "Today",
       icon: Activity,
-      value: formatSignedMoney(snapshot.dayChangeBase, base),
+      value: <Money value={snapshot.dayChangeBase} currency={base} signed />,
       sub: formatPercent(snapshot.dayChangePct),
       color: pnlColor(snapshot.dayChangeBase),
     },
     {
       label: "Total P/L",
       icon: TrendingUp,
-      value: formatSignedMoney(snapshot.totalUnrealizedPnlBase, base),
+      value: (
+        <Money value={snapshot.totalUnrealizedPnlBase} currency={base} signed />
+      ),
       sub: formatPercent(snapshot.totalUnrealizedPnlPct),
       color: pnlColor(snapshot.totalUnrealizedPnlBase),
     },
     {
       label: "Invested",
       icon: PiggyBank,
-      value: formatMoney(snapshot.totalInvestedBase, base),
+      value: <Money value={snapshot.totalInvestedBase} currency={base} />,
       sub: "Cost basis",
       color: "text-zinc-200",
     },

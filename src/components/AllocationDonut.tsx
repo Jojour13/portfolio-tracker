@@ -4,7 +4,8 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Sector } from "recharts";
 import { useState } from "react";
 import type { PortfolioSnapshot, Currency } from "@/lib/types";
 import { colorForIndex } from "@/lib/utils";
-import { formatMoney, formatPercent } from "@/lib/format";
+import { formatPercent } from "@/lib/format";
+import { Money } from "./Money";
 
 interface Props {
   snapshot: PortfolioSnapshot;
@@ -62,18 +63,24 @@ export function AllocationDonut({ snapshot, base }: Props) {
             <span className="text-2xl font-semibold text-white tabular">
               {formatPercent(focus.weight, 1)}
             </span>
-            <span className="text-sm text-zinc-400 tabular">
-              {formatMoney(focus.value, base, { compact: true })}
-            </span>
+            <Money
+              value={focus.value}
+              currency={base}
+              compact
+              className="text-sm text-zinc-400 tabular"
+            />
           </>
         ) : (
           <>
             <span className="text-xs uppercase tracking-wide text-zinc-500">
               Total value
             </span>
-            <span className="text-2xl font-semibold text-white tabular">
-              {formatMoney(snapshot.totalValueBase, base, { compact: true })}
-            </span>
+            <Money
+              value={snapshot.totalValueBase}
+              currency={base}
+              compact
+              className="text-2xl font-semibold text-white tabular"
+            />
             <span className="text-sm text-zinc-400">
               {data.length} holdings
             </span>

@@ -23,32 +23,51 @@ export function buildPosition(asset: Asset, txns: Transaction[]): Position {
   let quantity = 0;
   let avgCost = 0;
   let realizedPnl = 0;
+  // Margin accounting: split each buy's notional into own equity + borrowed.
+  // Leverage never changes the cost basis (avgCost) — only how it was funded.
+  let equity = 0;
+  let borrowed = 0;
 
   for (const t of ordered) {
     if (t.side === "buy") {
       const newQty = quantity + t.quantity;
-      const newCostBasis = quantity * avgCost + t.quantity * t.price + t.fee;
+      const notional = t.quantity * t.price + t.fee;
+      const lev = t.margin && t.leverage && t.leverage > 1 ? t.leverage : 1;
+      equity += notional / lev;
+      borrowed += notional - notional / lev;
+      const newCostBasis = quantity * avgCost + notional;
       avgCost = newQty > 0 ? newCostBasis / newQty : 0;
       quantity = newQty;
     } else {
-      // sell
+      // sell — reduce funding proportionally to the fraction sold
       const sellQty = Math.min(t.quantity, quantity);
       const proceeds = sellQty * t.price - t.fee;
       realizedPnl += proceeds - sellQty * avgCost;
+      const remainFrac = quantity > 0 ? (quantity - sellQty) / quantity : 0;
+      equity *= remainFrac;
+      borrowed *= remainFrac;
       quantity -= sellQty;
       if (quantity <= 1e-12) {
         quantity = 0;
         avgCost = 0;
+        equity = 0;
+        borrowed = 0;
       }
     }
   }
+
+  const invested = quantity * avgCost;
+  const leverage = equity > 0 ? (equity + borrowed) / equity : 1;
 
   return {
     asset,
     quantity,
     avgCost,
-    invested: quantity * avgCost,
+    invested,
     realizedPnl,
+    leverage,
+    equityInvested: equity > 0 ? equity : invested,
+    borrowed: borrowed > 0 ? borrowed : 0,
   };
 }
 
@@ -115,6 +134,17 @@ export function valuePortfolio(
         ? price / prevClose - 1
         : null;
 
+    // Leverage: liquidation price for a long ~ avgCost * (1 - 1/leverage),
+    // and the return felt on own capital is amplified by the leverage.
+    const levered = p.leverage > 1.0001;
+    const liqPrice = levered ? p.avgCost * (1 - 1 / p.leverage) : null;
+    const distanceToLiqPct =
+      levered && price !== null && price > 0 && liqPrice !== null
+        ? (price - liqPrice) / price
+        : null;
+    const pnlPctOnEquity =
+      unrealizedPnlPct !== null ? unrealizedPnlPct * p.leverage : null;
+
     return {
       ...p,
       price,
@@ -124,7 +154,10 @@ export function valuePortfolio(
       investedBase,
       unrealizedPnlNative,
       unrealizedPnlPct,
+      pnlPctOnEquity,
       dayChangePct,
+      liqPrice,
+      distanceToLiqPct,
       weight: 0,
     };
   });

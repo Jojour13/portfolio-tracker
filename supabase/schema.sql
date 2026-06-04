@@ -27,6 +27,8 @@ create table if not exists transactions (
   fee       numeric not null default 0,
   date      date not null,
   note      text,
+  margin    boolean,
+  leverage  numeric,
   created_at timestamptz not null default now()
 );
 

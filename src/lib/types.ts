@@ -46,6 +46,10 @@ export interface Transaction {
   /** ISO date string. */
   date: string;
   note?: string;
+  /** Whether this trade used margin/leverage. Absent = cash (1x). */
+  margin?: boolean;
+  /** Leverage multiple, e.g. 3 for 3x. Absent/1 = unleveraged. */
+  leverage?: number;
 }
 
 /** A holding derived from all of an asset's transactions. */
@@ -58,6 +62,13 @@ export interface Position {
   invested: number;
   /** Realised P/L from sells so far (native currency). */
   realizedPnl: number;
+  // --- margin (cost-weighted across the remaining position) ---
+  /** Effective leverage of the remaining position. 1 = unleveraged. */
+  leverage: number;
+  /** Own capital actually at risk (native currency) = invested / leverage. */
+  equityInvested: number;
+  /** Borrowed amount funding the position (native currency). */
+  borrowed: number;
 }
 
 /** A position enriched with a live price and converted to the base currency. */
@@ -70,7 +81,13 @@ export interface ValuedPosition extends Position {
   investedBase: number;
   unrealizedPnlNative: number | null;
   unrealizedPnlPct: number | null;
+  /** Return measured against own capital (leveraged %). */
+  pnlPctOnEquity: number | null;
   dayChangePct: number | null;
+  /** Price at which a leveraged long is liquidated (native currency). */
+  liqPrice: number | null;
+  /** How far price can fall before liquidation, as a fraction (0..1). */
+  distanceToLiqPct: number | null;
   /** Share of total portfolio value, 0..1. */
   weight: number;
 }
@@ -78,6 +95,8 @@ export interface ValuedPosition extends Position {
 export interface Settings {
   baseCurrency: Currency;
   refreshIntervalSec: number;
+  /** Annual risk-free rate for Sharpe (e.g. 0.0575 = BI 7-day repo). */
+  riskFreeRate: number;
 }
 
 export interface PortfolioSnapshot {

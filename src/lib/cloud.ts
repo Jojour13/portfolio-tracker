@@ -59,6 +59,8 @@ function txnRow(t: Transaction) {
     fee: t.fee,
     date: t.date,
     note: t.note ?? null,
+    margin: t.margin ?? null,
+    leverage: t.leverage ?? null,
   };
 }
 function txnFromRow(r: any): Transaction {
@@ -71,6 +73,8 @@ function txnFromRow(r: any): Transaction {
     fee: Number(r.fee),
     date: r.date,
     note: r.note ?? undefined,
+    margin: r.margin ?? undefined,
+    leverage: r.leverage != null ? Number(r.leverage) : undefined,
   };
 }
 

@@ -33,6 +33,7 @@ export function usePortfolio() {
   return {
     snapshot,
     base: settings.baseCurrency,
+    ratesPerUsd,
     isLoading,
     isFetching,
     lastUpdated,

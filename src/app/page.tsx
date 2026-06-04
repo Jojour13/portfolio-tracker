@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { RefreshCw, PlusCircle } from "lucide-react";
+import { RefreshCw, PlusCircle, Eye, EyeOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { usePortfolio } from "@/hooks/usePortfolio";
 import { useFolio } from "@/lib/store";
@@ -10,9 +10,12 @@ import { AllocationDonut } from "@/components/AllocationDonut";
 import { HoldingsTable } from "@/components/HoldingsTable";
 import { Card, Button } from "@/components/ui";
 import { cn, colorForIndex } from "@/lib/utils";
+import { pickMessage } from "@/lib/messages";
 
 export default function DashboardPage() {
   const hydrated = useFolio((s) => s.hydrated);
+  const censored = useFolio((s) => s.censored);
+  const toggleCensor = useFolio((s) => s.toggleCensor);
   const { snapshot, base, isFetching, lastUpdated, refetch, hasData } =
     usePortfolio();
 
@@ -51,6 +54,15 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleCensor}
+            title={censored ? "Show amounts" : "Hide amounts"}
+            aria-label={censored ? "Show amounts" : "Hide amounts"}
+          >
+            {censored ? <EyeOff size={14} /> : <Eye size={14} />}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
             <span className="hidden sm:inline">Refresh</span>
@@ -92,8 +104,25 @@ export default function DashboardPage() {
               <HoldingsTable positions={snapshot.positions} base={base} />
             </div>
           </div>
+
+          <MessageBanner profit={snapshot.totalUnrealizedPnlBase >= 0} />
         </>
       )}
+    </div>
+  );
+}
+
+function MessageBanner({ profit }: { profit: boolean }) {
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border px-5 py-4 text-center text-sm",
+        profit
+          ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-200/90"
+          : "border-rose-500/20 bg-rose-500/5 text-rose-200/90",
+      )}
+    >
+      “{pickMessage(profit)}”
     </div>
   );
 }

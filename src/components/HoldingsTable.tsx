@@ -2,6 +2,7 @@
 
 import type { Currency, ValuedPosition } from "@/lib/types";
 import { Card, Badge } from "./ui";
+import { Money } from "./Money";
 import {
   formatMoney,
   formatNumber,
@@ -63,6 +64,11 @@ export function HoldingsTable({
                   <Badge className={TYPE_STYLE[p.asset.type]}>
                     {p.asset.type}
                   </Badge>
+                  {p.leverage > 1.0001 && (
+                    <Badge className="bg-amber-500/15 text-amber-300">
+                      {p.leverage.toFixed(p.leverage % 1 ? 1 : 0)}x
+                    </Badge>
+                  )}
                 </div>
                 <div className="truncate text-xs text-zinc-500">
                   {p.asset.name} · {formatPercent(p.weight, 1)}
@@ -86,13 +92,21 @@ export function HoldingsTable({
               <div className="text-[11px] text-zinc-500 tabular">
                 avg {formatMoney(p.avgCost, p.asset.currency)}
               </div>
+              {p.distanceToLiqPct !== null && (
+                <div className="text-[11px] text-amber-400/80 tabular">
+                  liq {formatPercent(-p.distanceToLiqPct, 0)}
+                </div>
+              )}
             </div>
 
             {/* value */}
             <div className="text-right md:col-span-2">
-              <div className="text-sm font-medium text-white tabular">
-                {formatMoney(p.marketValueBase, base, { compact: true })}
-              </div>
+              <Money
+                value={p.marketValueBase}
+                currency={base}
+                compact
+                className="text-sm font-medium text-white tabular"
+              />
               <div className="text-[11px] text-zinc-500 md:hidden">Value</div>
             </div>
 
@@ -113,18 +127,16 @@ export function HoldingsTable({
               >
                 {formatPercent(p.unrealizedPnlPct)}
               </div>
-              <div
+              <Money
+                value={p.unrealizedPnlNative}
+                currency={p.asset.currency}
+                signed
+                compact
                 className={cn(
                   "text-[11px] tabular",
                   pnlColor(p.unrealizedPnlNative),
                 )}
-              >
-                {p.unrealizedPnlNative !== null
-                  ? formatMoney(p.unrealizedPnlNative, p.asset.currency, {
-                      compact: true,
-                    })
-                  : "—"}
-              </div>
+              />
             </div>
           </div>
         ))}

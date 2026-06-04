@@ -34,6 +34,8 @@ export interface NewTxnInput {
   fee?: number;
   date?: string;
   note?: string;
+  margin?: boolean;
+  leverage?: number;
 }
 
 interface FolioState {
@@ -41,8 +43,11 @@ interface FolioState {
   transactions: Transaction[];
   settings: Settings;
   hydrated: boolean;
+  /** When true, all monetary amounts are blurred for screenshots in public. */
+  censored: boolean;
 
   setHydrated: () => void;
+  toggleCensor: () => void;
   /** Find an existing asset by quoteId or create one, returning its id. */
   upsertAsset: (input: NewAssetInput) => string;
   addTransaction: (assetId: string, txn: NewTxnInput) => void;
@@ -82,6 +87,7 @@ const SAMPLE_TXNS: Transaction[] = [
 const DEFAULT_SETTINGS: Settings = {
   baseCurrency: "IDR",
   refreshIntervalSec: 30,
+  riskFreeRate: 0.0575,
 };
 
 export const useFolio = create<FolioState>()(
@@ -91,8 +97,10 @@ export const useFolio = create<FolioState>()(
       transactions: SAMPLE_TXNS,
       settings: DEFAULT_SETTINGS,
       hydrated: false,
+      censored: false,
 
       setHydrated: () => set({ hydrated: true }),
+      toggleCensor: () => set((s) => ({ censored: !s.censored })),
 
       upsertAsset: (input) => {
         const existing = get().assets.find(
@@ -116,6 +124,8 @@ export const useFolio = create<FolioState>()(
           fee: txn.fee ?? 0,
           date: txn.date ?? new Date().toISOString().slice(0, 10),
           note: txn.note,
+          margin: txn.margin,
+          leverage: txn.leverage,
         };
         set((s) => ({ transactions: [...s.transactions, t] }));
         void pushTransaction(t);
