@@ -265,6 +265,7 @@ export default function PerformancePage() {
             className="animate-fade flex flex-col items-center gap-4"
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="origin-top scale-[0.92] sm:scale-100">
             <ShareCard
               ref={cardRef}
               tfLabel={tfLabel}
@@ -279,6 +280,7 @@ export default function PerformancePage() {
               shortWindow={is1D || tf === "3d" || tf === "7d"}
               censored={censored}
             />
+            </div>
             <div className="flex gap-2">
               <Button onClick={doShare} disabled={busy}>
                 {busy ? (

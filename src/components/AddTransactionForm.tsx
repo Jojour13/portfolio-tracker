@@ -147,8 +147,8 @@ export function AddTransactionForm() {
       fee: parseFloat(fee) || 0,
       date,
       note: note || undefined,
-      margin: !isCash && margin ? true : undefined,
-      leverage: !isCash && margin ? levNum : undefined,
+      margin: !isCash && side === "buy" && margin ? true : undefined,
+      leverage: !isCash && side === "buy" && margin ? levNum : undefined,
     });
 
     setDone(true);
@@ -336,7 +336,7 @@ export function AddTransactionForm() {
         </div>
       </div>
 
-      {!isCash && (
+      {!isCash && side === "buy" && (
         <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
           <label className="flex cursor-pointer items-center gap-2.5">
             <input
@@ -389,10 +389,15 @@ export function AddTransactionForm() {
       {/* summary + submit */}
       <div className="mt-5 flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
         <span className="text-xs uppercase tracking-wide text-zinc-500">
-          {isCash ? "Amount" : "Total cost"}
+          {isCash ? "Amount" : side === "buy" ? "Total cost" : "Net proceeds"}
         </span>
         <span className="text-lg font-semibold text-white tabular">
-          {formatMoney(total, ccy)}
+          {formatMoney(
+            isCash || side === "buy"
+              ? total
+              : realQty * priceNum - (parseFloat(fee) || 0),
+            ccy,
+          )}
         </span>
       </div>
 
