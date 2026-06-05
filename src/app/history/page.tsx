@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Trash2, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { useFolio } from "@/lib/store";
-import { Card, Badge, Button } from "@/components/ui";
+import { Card, Badge } from "@/components/ui";
 import { Money } from "@/components/Money";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -70,7 +70,9 @@ export default function HistoryPage() {
 
       {rows.length === 0 ? (
         <Card className="py-16 text-center text-zinc-500">
-          No transactions yet.
+          {filter === "all"
+            ? "No transactions yet."
+            : `No ${filter} transactions.`}
         </Card>
       ) : (
         <Card className="divide-y divide-zinc-800/70">

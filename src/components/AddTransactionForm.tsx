@@ -90,7 +90,9 @@ export function AddTransactionForm() {
 
   // --- validation ---
   const today = new Date().toISOString().slice(0, 10);
-  const entryIsRecent = date >= today; // today or a future date
+  // Only sanity-check the price for a *same-day* trade — past/future dates
+  // legitimately have different prices we can't validate against live data.
+  const isTodayEntry = date === today;
   const sellTooMuch = side === "sell" && hasPick && realQty > heldQty + 1e-9;
   const priceDeviation =
     !isCash && marketPrice && priceNum > 0
@@ -98,7 +100,7 @@ export function AddTransactionForm() {
       : 0;
   const priceOutOfRange =
     !isCash &&
-    entryIsRecent &&
+    isTodayEntry &&
     marketPrice != null &&
     priceNum > 0 &&
     priceDeviation > PRICE_TOLERANCE;
