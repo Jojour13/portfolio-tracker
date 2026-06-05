@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Trash2, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { useFolio } from "@/lib/store";
 import { Card, Badge, Button } from "@/components/ui";
+import { Money } from "@/components/Money";
 import { formatMoney, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { AssetType } from "@/lib/types";
@@ -125,9 +126,15 @@ export default function HistoryPage() {
 
                 <div className="text-right">
                   <div className="text-sm font-medium text-white tabular">
-                    {asset.type === "cash"
-                      ? formatMoney(t.quantity, asset.currency, { compact: true })
-                      : `${lots !== null ? formatNumber(lots, 0) + " lot" : formatNumber(t.quantity, 4)}`}
+                    {asset.type === "cash" ? (
+                      <Money
+                        value={t.quantity}
+                        currency={asset.currency}
+                        compact
+                      />
+                    ) : (
+                      `${lots !== null ? formatNumber(lots, 0) + " lot" : formatNumber(t.quantity, 4)}`
+                    )}
                   </div>
                   {asset.type !== "cash" && (
                     <div className="text-[11px] text-zinc-500 tabular">

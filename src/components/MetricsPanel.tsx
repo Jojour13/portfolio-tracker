@@ -18,7 +18,7 @@ function Chip({
   color?: string;
 }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-3 py-2.5">
+    <div className="tile rounded-xl border border-zinc-800 bg-zinc-900/40 px-3 py-2.5 hover:bg-zinc-800/50">
       <div className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
         {label}
       </div>

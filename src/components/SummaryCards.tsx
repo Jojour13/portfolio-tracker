@@ -57,7 +57,7 @@ export function SummaryCards({
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {items.map((it) => (
-        <Card key={it.label} className="p-4">
+        <Card key={it.label} className="tile p-4">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
               {it.label}

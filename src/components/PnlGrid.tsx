@@ -63,9 +63,9 @@ export function PnlGrid({
     const map = new Map(agg.map((y) => [+y.key, y.pnl]));
     const minY = Math.min(...map.keys());
     const maxY = Math.max(new Date().getUTCFullYear(), ...map.keys());
-    const out: { key: string; pnl: number }[] = [];
+    const out: { key: string; pnl: number | null }[] = [];
     for (let y = minY; y <= maxY; y++)
-      out.push({ key: String(y), pnl: map.get(y) ?? 0 });
+      out.push({ key: String(y), pnl: map.has(y) ? map.get(y)! : null });
     return out;
   }, [daily]);
   const months = useMemo(() => aggregate(daily, "month"), [daily]);
@@ -166,10 +166,13 @@ function YearView({
   years,
   fmt,
 }: {
-  years: { key: string; pnl: number }[];
+  years: { key: string; pnl: number | null }[];
   fmt: (n: number) => string;
 }) {
-  const maxAbs = Math.max(1, ...years.map((y) => Math.abs(y.pnl)));
+  const maxAbs = Math.max(
+    1,
+    ...years.map((y) => (y.pnl === null ? 0 : Math.abs(y.pnl))),
+  );
   return (
     <div className="flex flex-wrap gap-2.5">
       {years.map((y) => (

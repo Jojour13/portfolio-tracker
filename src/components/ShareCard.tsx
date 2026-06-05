@@ -65,7 +65,7 @@ export const ShareCard = forwardRef<HTMLDivElement, ShareCardProps>(
         {/* absolute (hidden when censored) */}
         <div className="mt-1 text-sm text-zinc-400 tabular">
           {p.censored || p.absChange === null
-            ? "•••••• "
+            ? "***** "
             : formatMoney(p.absChange, p.base, { compact: true })}
           <span className="text-zinc-600"> change</span>
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, Check, Repeat } from "lucide-react";
+import { ArrowLeftRight, Check, Repeat } from "lucide-react";
 import { CURRENCIES, type Currency } from "@/lib/types";
 import { useFolio } from "@/lib/store";
 import { usePrices } from "@/hooks/usePrices";
@@ -104,7 +104,7 @@ export function CashConverter() {
           className="mb-1 rounded-lg p-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
           title="Swap"
         >
-          <ArrowRight size={16} />
+          <ArrowLeftRight size={16} />
         </button>
         <div className="w-24">
           <Label>To</Label>

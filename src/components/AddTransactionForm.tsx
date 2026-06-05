@@ -50,9 +50,13 @@ export function AddTransactionForm() {
   const priceNum = isCash ? 1 : parseFloat(price) || 0;
   const total = realQty * priceNum + (parseFloat(fee) || 0);
 
-  // --- current holding of the picked asset (for sell-max) ---
-  const existingAsset = picked
-    ? assets.find((a) => a.quoteId === picked.quoteId && a.type === picked.type)
+  // --- current holding of the target asset (for sell/withdraw max) ---
+  const lookupQuoteId = isCash
+    ? `cash-${cashCcy.toLowerCase()}`
+    : picked?.quoteId;
+  const lookupType = isCash ? "cash" : picked?.type;
+  const existingAsset = lookupQuoteId
+    ? assets.find((a) => a.quoteId === lookupQuoteId && a.type === lookupType)
     : null;
   const heldQty = existingAsset
     ? transactions
@@ -60,6 +64,7 @@ export function AddTransactionForm() {
         .reduce((q, t) => q + (t.side === "buy" ? t.quantity : -t.quantity), 0)
     : 0;
   const heldDisplay = usesLots ? heldQty / lotSize : heldQty;
+  const hasPick = isCash || !!picked;
 
   // --- live market price, for the sanity check ---
   const priceAssets = useMemo<Asset[]>(
@@ -86,7 +91,7 @@ export function AddTransactionForm() {
   // --- validation ---
   const today = new Date().toISOString().slice(0, 10);
   const entryIsRecent = date >= today; // today or a future date
-  const sellTooMuch = side === "sell" && !isCash && realQty > heldQty + 1e-9;
+  const sellTooMuch = side === "sell" && hasPick && realQty > heldQty + 1e-9;
   const priceDeviation =
     !isCash && marketPrice && priceNum > 0
       ? Math.abs(priceNum - marketPrice) / marketPrice
@@ -240,7 +245,7 @@ export function AddTransactionForm() {
             <Label className="mb-0">
               {isCash ? `Amount (${ccy})` : usesLots ? "Lots" : "Quantity"}
             </Label>
-            {side === "sell" && !isCash && picked && heldQty > 0 && (
+            {side === "sell" && hasPick && heldQty > 0 && (
               <button
                 type="button"
                 onClick={() => setQty(String(usesLots ? heldDisplay : heldQty))}
@@ -266,12 +271,13 @@ export function AddTransactionForm() {
           {sellTooMuch && (
             <p className="mt-1 text-[11px] text-rose-400">
               You only hold {formatNumber(heldDisplay, usesLots ? 0 : 4)}{" "}
-              {usesLots ? "lots" : "units"}.
+              {isCash ? ccy : usesLots ? "lots" : "units"}.
             </p>
           )}
-          {side === "sell" && !isCash && picked && heldQty <= 0 && (
+          {side === "sell" && hasPick && heldQty <= 0 && (
             <p className="mt-1 text-[11px] text-rose-400">
-              You don&apos;t hold any {picked.symbol} to sell.
+              You don&apos;t hold any {isCash ? ccy : picked?.symbol} to{" "}
+              {isCash ? "withdraw" : "sell"}.
             </p>
           )}
         </div>

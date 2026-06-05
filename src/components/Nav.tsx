@@ -91,12 +91,12 @@ export function Nav() {
                 key={href}
                 href={href}
                 className={cn(
-                  "flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors",
+                  "flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium leading-none transition-colors",
                   active ? "text-indigo-400" : "text-zinc-500",
                 )}
               >
-                <Icon size={20} />
-                {label}
+                <Icon size={19} />
+                <span className="max-w-full truncate">{label}</span>
               </Link>
             );
           })}
