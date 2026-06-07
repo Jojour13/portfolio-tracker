@@ -28,6 +28,7 @@ function weekStart(dateStr: string): string {
 export function dailyPnl(points: SeriesPoint[]): PeriodPnl[] {
   const out: PeriodPnl[] = [];
   for (let i = 1; i < points.length; i++) {
+    if (points[i - 1].partial || points[i].partial) continue;
     const pnl = points[i].value - points[i - 1].value - points[i].flow;
     out.push({ key: points[i].date, label: dayLabel(points[i].date), pnl });
   }

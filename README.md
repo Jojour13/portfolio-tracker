@@ -1,19 +1,21 @@
-# ƒ Folio — live multi-asset portfolio
+# Folio - live multi-asset portfolio
 
-A clean, real-time portfolio dashboard for **crypto, stocks (IDX / SGX / US) and multi-currency cash**, all normalised into one allocation pie. Built as a responsive web app — looks great on desktop and installs to your phone home screen as a PWA.
+A clean, real-time portfolio dashboard for crypto, stocks, ETFs/funds, listed bond funds, money market funds, and multi-currency cash. Folio keeps everything normalised into one base currency so allocation, P/L, drift, and cash impact stay readable across accounts and markets.
 
 ![status](https://img.shields.io/badge/status-MVP-6366f1) ![next](https://img.shields.io/badge/Next.js-15-black) ![license](https://img.shields.io/badge/license-MIT-22c55e)
 
 ## Features
 
-- 📊 **Allocation donut** — every asset converted to your base currency (IDR / SGD / CHF / USD / EUR) at live FX.
-- ⚡ **Real-time prices** — crypto via CoinGecko, stocks via Yahoo Finance, auto-refreshing on an interval you choose.
-- 🧮 **Average-cost tracking** — buy more of something and your average price adjusts automatically. Realised + unrealised P/L derived from your trade history.
-- 🪙 **Lots-aware** — IDX positions entered in lots (1 lot = 100 shares); crypto in coins; cash as balances.
-- 🧾 **Trade history** — full log, filterable by asset type, with one-tap delete.
-- 📱 **PWA** — installable, offline shell, mobile bottom-nav.
-- 🔒 **Local-first** — your data lives in your browser by default. Add Supabase and it becomes a secure multi-device account.
-- 🔐 **Private by design** — passwords are bcrypt-hashed (never visible to anyone), email-based password reset, and Row-Level Security isolates every user's data. See [SECURITY.md](SECURITY.md).
+- Allocation donut: every asset converted to your base currency (IDR / SGD / CHF / USD / EUR) at live FX.
+- Multi-asset transactions: crypto, stocks, ETFs/funds, listed bond funds, money market funds, and cash movements.
+- Average-cost tracking: realised and unrealised P/L derived from transaction history.
+- Cash ledger impact: buys, sells, deposits, withdrawals, dividends, interest, fees, and withholding tax can flow through cash.
+- Lots-aware entries: IDX positions can be entered in lots (1 lot = 100 shares).
+- Risk target design: compare crypto, equity/funds, fixed income, and cash/money-market weights against your plan.
+- Trade history: full log, filterable by asset type, with CSV export.
+- PWA shell: responsive desktop/mobile experience with install support.
+- Local-first storage: your data stays in your browser by default. Add Supabase to sync across devices.
+- Security model: Supabase Auth handles sign-in, and Row-Level Security isolates each user's portfolio rows. See [SECURITY.md](SECURITY.md).
 
 ## Quick start
 
@@ -23,48 +25,56 @@ npm run dev
 # open http://localhost:3000
 ```
 
-The app ships with a sample portfolio so you can see it working immediately. Clear it from **Settings → Clear everything**, then add your own trades.
+The app ships with a sample portfolio so you can see it working immediately. Clear it from Settings -> Clear everything, then add your own trades.
 
 ## How prices work
 
 | Asset | Source | Endpoint (proxied server-side) |
-|-------|--------|-------------------------------|
-| Crypto | CoinGecko | `/api/crypto` |
-| Stocks (US / `.SI` SGX / `.JK` IDX) | Yahoo Finance | `/api/quote` |
+|-------|--------|--------------------------------|
+| Crypto | Yahoo Finance crypto symbols for new assets; legacy CoinGecko IDs still supported | `/api/quote`, `/api/crypto`, `/api/search` |
+| Stocks (US / `.SI` SGX / `.JK` IDX) | Yahoo Finance | `/api/quote`, `/api/search` |
+| ETFs/funds | Yahoo Finance | `/api/quote`, `/api/search` |
+| Listed bond funds | Yahoo Finance fund/ETF results filtered for fixed-income terms | `/api/quote`, `/api/search` |
+| Money market funds | Yahoo Finance fund/ETF results filtered for cash-equivalent terms | `/api/quote`, `/api/search` |
 | FX rates | open.er-api.com | `/api/fx` |
-| Symbol search | Yahoo + CoinGecko | `/api/search` |
 
-All third-party calls are proxied through Next.js API routes — this avoids CORS and keeps the client simple. Stock quotes are delayed (~15 min) and unofficial; treat them as indicative, not for execution.
+All third-party calls are proxied through Next.js API routes to avoid client CORS issues. Quotes from free public endpoints can be delayed, incomplete, or inaccurate; treat them as indicative, not executable prices.
 
-## Cloud sync + accounts (Supabase — free tier)
+## Asset coverage limits
 
-Folio works fully offline with **zero setup**. To turn on accounts and cross-device sync:
+Folio intentionally does not model options yet.
 
-1. Create a free project at [supabase.com](https://supabase.com).
-2. In the SQL editor, run [`supabase/schema.sql`](supabase/schema.sql) — this creates the tables **and** the Row-Level Security policies that keep each user's data private.
-3. Copy `.env.local.example` → `.env.local` and paste your **Project URL** and **anon key** (Project Settings → API).
+Individual bonds are also not fully modeled. The current fixed-income flow is for listed bond funds and ETFs. True individual-bond support needs coupon schedules, maturity date, face value, accrued interest, amortisation, yield, and duration logic before it can be considered correct.
+
+Money market funds are valued through ticker price/NAV. Separate daily yield accrual is not modeled unless you enter income manually.
+
+## Cloud sync + accounts (Supabase)
+
+Folio works fully offline with zero setup. To turn on accounts and cross-device sync:
+
+1. Create a Supabase project.
+2. In the SQL editor, run [`supabase/schema.sql`](supabase/schema.sql). This creates the tables and Row-Level Security policies.
+3. Copy `.env.local.example` to `.env.local` and paste your project URL and anon key.
 4. Restart `npm run dev`.
 
-Now the app requires sign-in, and each account's portfolio syncs to the cloud. Auth pages (`/login`, `/reset`) are built in: email + password, with **email-based password reset**.
-
-**Email delivery:** Supabase's built-in email works out of the box for testing (rate-limited). For production, add your own SMTP under Authentication → Email, or disable “Confirm email” for a smoother demo (Authentication → Providers → Email).
-
-**Security model:** passwords are bcrypt-hashed and never readable by anyone; data isolation is enforced at the database by RLS. Full details and the zero-knowledge tradeoff in [SECURITY.md](SECURITY.md).
+Now the app requires sign-in, and each account's portfolio syncs to the cloud. Auth pages (`/login`, `/reset`) support email/password sign-in and password reset.
 
 ## Deploy
 
-Push to GitHub and import into [Vercel](https://vercel.com) — zero config. Add the Supabase env vars in the Vercel dashboard if using cloud sync.
+Push to GitHub and import into Vercel. Add Supabase environment variables in Vercel if cloud sync is enabled.
 
 ## Tech
 
-Next.js 15 (App Router) · TypeScript · Tailwind v4 · TanStack Query · Recharts · Zustand · Supabase.
+Next.js 15 (App Router), TypeScript, Tailwind v4, TanStack Query, Recharts, Zustand, Supabase.
 
 ## Roadmap
 
-- [ ] Supabase auth + live sync wired into the UI
-- [ ] Per-asset historical value chart (sparklines)
-- [ ] Realised P/L & dividends report
-- [ ] CSV import/export
+- [x] Supabase auth + live sync wired into the UI
+- [x] Filtered transaction CSV export
+- [x] Funds, listed bond funds, and money market fund entry
+- [ ] Individual bond accounting
+- [ ] Per-asset historical value chart
+- [ ] Tax-year income and realised P/L reports
 - [ ] Price + target alerts
 
 ## Disclaimer

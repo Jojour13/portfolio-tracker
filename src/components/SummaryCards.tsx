@@ -14,6 +14,12 @@ export function SummaryCards({
   snapshot: PortfolioSnapshot;
   base: Currency;
 }) {
+  const bookedBase = snapshot.totalRealizedBase + snapshot.totalIncomeBase;
+  const hasWithholdingTax = snapshot.totalWithholdingTaxBase > 0;
+  const grossIncomeBase =
+    snapshot.totalIncomeBase + snapshot.totalWithholdingTaxBase;
+  const withholdingTaxRate =
+    grossIncomeBase > 0 ? snapshot.totalWithholdingTaxBase / grossIncomeBase : 0;
   const items = [
     {
       label: "Total Value",
@@ -21,7 +27,7 @@ export function SummaryCards({
       value: <Money value={snapshot.totalValueBase} currency={base} />,
       sub: (
         <>
-          Invested{" "}
+          {snapshot.valuationIncomplete ? "Partial - invested " : "Invested "}
           <Money value={snapshot.totalInvestedBase} currency={base} compact />
         </>
       ),
@@ -44,13 +50,53 @@ export function SummaryCards({
       color: pnlColor(snapshot.totalUnrealizedPnlBase),
     },
     {
-      label: "Realized P/L",
+      label: "Realized + Income",
       icon: PiggyBank,
-      value: (
-        <Money value={snapshot.totalRealizedBase} currency={base} signed />
+      value: <Money value={bookedBase} currency={base} signed />,
+      sub: (
+        <>
+          {hasWithholdingTax ? (
+            <span className="block leading-relaxed">
+              <span className="block">
+                Sells{" "}
+                <Money
+                  value={snapshot.totalRealizedBase}
+                  currency={base}
+                  compact
+                />
+                {" / Net income "}
+                <Money value={snapshot.totalIncomeBase} currency={base} compact />
+              </span>
+              <span className="block">
+                Tax{" "}
+                <Money
+                  value={snapshot.totalWithholdingTaxBase}
+                  currency={base}
+                  compact
+                />
+                {" / Gross income "}
+                <Money
+                  value={grossIncomeBase}
+                  currency={base}
+                  compact
+                />
+                {" ("}
+                {formatPercent(withholdingTaxRate, 1)}
+                {")"}
+              </span>
+            </span>
+          ) : (
+            <>
+              Sells{" "}
+              <Money value={snapshot.totalRealizedBase} currency={base} compact />
+              {" / "}
+              Income{" "}
+              <Money value={snapshot.totalIncomeBase} currency={base} compact />
+            </>
+          )}
+        </>
       ),
-      sub: "Booked from sells",
-      color: pnlColor(snapshot.totalRealizedBase),
+      color: pnlColor(bookedBase),
     },
   ];
 

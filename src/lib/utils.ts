@@ -13,6 +13,12 @@ export function uid(): string {
   ).toUpperCase();
 }
 
+/** Local YYYY-MM-DD for date inputs and transaction defaults. */
+export function localIsoDate(date = new Date()): string {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
 /** Distinct, accessible colors for the allocation donut. */
 export const CHART_COLORS = [
   "#6366f1", // indigo

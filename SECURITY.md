@@ -1,51 +1,59 @@
 # Security & Privacy
 
-Folio is designed so that **your portfolio data and password are yours alone**. This document explains exactly how, and what the guarantees are.
+Folio is designed as a local-first portfolio tracker with optional Supabase sync. This document states the actual guarantees and the limits that matter before publishing.
 
 ## Passwords
 
-- Authentication is handled by **Supabase Auth**, which stores only a **salted bcrypt hash** of your password — never the plaintext.
-- **No one can read your password**: not the app, not the project owner in the Supabase dashboard, and not an attacker who obtains a database dump. A hash cannot be reversed back into the password.
-- Minimum length is enforced (8+ characters) and Supabase rate-limits sign-in attempts.
+- Authentication is handled by Supabase Auth.
+- Folio never stores, logs, or directly handles plaintext passwords in its own tables.
+- Password reset is handled through Supabase's reset flow; no human needs to know the old password.
+- Minimum password length is enforced in the app, and Supabase applies its own auth protections.
 
-## Forgot password
+Do not claim a specific Supabase password hashing algorithm in product copy unless it has been verified against current Supabase documentation or the deployed auth configuration.
 
-If you forget your password, use **“Forgot your password?”** on the sign-in screen:
+## Data Isolation
 
-1. You enter your email.
-2. Supabase emails a **one-time, time-limited reset link**.
-3. The link opens `/reset`, where you choose a new password.
+Every synced table (`assets`, `transactions`, `settings`) is protected by Row-Level Security using `auth.uid() = user_id`.
 
-No human is ever in the loop, and the old password is never recoverable (because it was never stored) — it's simply replaced.
-
-## Data isolation (Row-Level Security)
-
-Every table (`assets`, `transactions`, `settings`) has **Row-Level Security** enabled with a policy of `auth.uid() = user_id`. This means:
+That means:
 
 - Each row is stamped with its owner's user id.
-- The database **refuses** any read or write of a row that doesn't belong to the currently-authenticated user.
-- This holds even though the `anon` API key is shipped in the client bundle — that key is public *by design* and grants nothing without a valid user session. RLS is the real gatekeeper.
+- The database refuses reads or writes for rows that do not belong to the current authenticated user.
+- Transaction rows use an owner-scoped foreign key, so a transaction for one user cannot reference another user's asset id.
+- The public Supabase anon key can be shipped to the browser because RLS and the user session are the real access controls.
 
-So one user can never see or modify another user's holdings, even by crafting their own API calls.
+High confidence: this is enforced by `supabase/schema.sql`, which defines RLS policies and owner-scoped constraints.
 
-## What the project owner can/can't see
+The schema also enforces core portfolio integrity: unique asset identities per user, positive transaction amounts, valid quote sources, valid cash ledgers, and sane settings values. This protects users from malformed writes even if a client-side bug or crafted request bypasses the UI.
 
-As the **owner of the Supabase project**, you can query the raw tables in your own dashboard (using the privileged `service_role` key). This is true of essentially every hosted app and is necessary to operate it. It means:
+## What The Project Owner Can See
 
-- ✅ Passwords are **never** visible to anyone (they're hashed).
-- ⚠️ Holdings data is visible to the project owner at the database level.
+Supabase project owners can access raw database tables through privileged project credentials. Folio is not zero-knowledge today.
 
-### Optional: true zero-knowledge
+This means:
 
-If you want holdings to be unreadable **even by the project owner**, the path is **client-side (end-to-end) encryption** — encrypt each transaction in the browser with a key derived from the user's password before it's sent to Supabase.
+- Passwords are not visible to Folio or stored in Folio tables.
+- Portfolio holdings, transactions, and settings are visible to anyone with privileged database access.
 
-Important tradeoff: this is **incompatible with password reset**. If the encryption key comes from the password and the password is lost, the encrypted data is permanently unrecoverable (a reset can log you in, but can't decrypt old data). This is a deliberate, documented choice for zero-knowledge apps. Folio ships with the standard model (strong hashing + RLS + recoverable accounts) and leaves E2E encryption as an opt-in enhancement.
+## Optional Zero-Knowledge Mode
 
-## Secrets & keys
+To make holdings unreadable even to the project owner, Folio would need client-side encryption before data is sent to Supabase.
 
-- Only the **public** `NEXT_PUBLIC_SUPABASE_ANON_KEY` is used in the client — safe to expose.
-- The privileged `service_role` key is **never** used in Folio and must never be committed or shipped to the browser.
-- `.env.local` is git-ignored so your project URL/keys aren't pushed to GitHub.
+Tradeoff: if the encryption key is derived from the user's password, password reset cannot recover old encrypted data. That is a deliberate product decision and should not be added casually.
+
+## Secrets & Keys
+
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` is public by design and may be used in the browser.
+- Supabase `service_role` keys must never be committed, exposed to the client, or used in Folio browser code.
+- `.env.local` is git-ignored and should contain deployment-specific secrets only.
+
+## Local Storage Risk
+
+Without Supabase sync, the portfolio is stored in this browser profile. Anyone with access to the same browser profile may be able to view local data.
+
+## CSV Export Safety
+
+Trade-history CSV export neutralizes spreadsheet formulas in text cells, such as notes and asset names, before download. This reduces the risk of CSV formula execution when a file is opened in Excel, Google Sheets, or similar tools.
 
 ## Reporting
 

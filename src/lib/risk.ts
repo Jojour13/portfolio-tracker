@@ -1,4 +1,10 @@
-import type { RiskProfile, TargetAllocation, ValuedPosition } from "./types";
+import {
+  TARGET_CLASSES,
+  targetClassForAssetType,
+  type RiskProfile,
+  type TargetAllocation,
+  type ValuedPosition,
+} from "./types";
 
 export interface RiskQuestion {
   id: string;
@@ -71,10 +77,10 @@ export const PROFILE_TARGETS: Record<
   Exclude<RiskProfile, "custom">,
   TargetAllocation
 > = {
-  conservative: { crypto: 0.05, stock: 0.45, cash: 0.5 },
-  balanced: { crypto: 0.15, stock: 0.6, cash: 0.25 },
-  growth: { crypto: 0.3, stock: 0.6, cash: 0.1 },
-  aggressive: { crypto: 0.5, stock: 0.45, cash: 0.05 },
+  conservative: { crypto: 0.03, stock: 0.32, fixedIncome: 0.35, cash: 0.3 },
+  balanced: { crypto: 0.1, stock: 0.55, fixedIncome: 0.2, cash: 0.15 },
+  growth: { crypto: 0.22, stock: 0.63, fixedIncome: 0.1, cash: 0.05 },
+  aggressive: { crypto: 0.4, stock: 0.55, fixedIncome: 0.03, cash: 0.02 },
 };
 
 export const PROFILE_LABEL: Record<RiskProfile, string> = {
@@ -86,9 +92,9 @@ export const PROFILE_LABEL: Record<RiskProfile, string> = {
 };
 
 export const PROFILE_BLURB: Record<RiskProfile, string> = {
-  conservative: "Capital preservation first. Mostly cash & blue chips.",
-  balanced: "A steady core with a measured dose of growth.",
-  growth: "Tilted to growth; comfortable with real volatility.",
+  conservative: "Capital preservation first. Cash, money market, and fixed income lead.",
+  balanced: "A diversified core with measured growth risk.",
+  growth: "Tilted to equities and growth assets; comfortable with volatility.",
   aggressive: "Maximise upside, stomach big drawdowns.",
   custom: "Your own target mix.",
 };
@@ -97,18 +103,24 @@ export const PROFILE_BLURB: Record<RiskProfile, string> = {
 export function currentAllocation(
   positions: ValuedPosition[],
 ): TargetAllocation {
-  let crypto = 0;
-  let stock = 0;
-  let cash = 0;
+  const totals: TargetAllocation = {
+    crypto: 0,
+    stock: 0,
+    fixedIncome: 0,
+    cash: 0,
+  };
   for (const p of positions) {
     const v = p.marketValueBase ?? 0;
-    if (p.asset.type === "crypto") crypto += v;
-    else if (p.asset.type === "stock") stock += v;
-    else cash += v;
+    totals[targetClassForAssetType(p.asset.type)] += v;
   }
-  const total = crypto + stock + cash;
-  if (total <= 0) return { crypto: 0, stock: 0, cash: 0 };
-  return { crypto: crypto / total, stock: stock / total, cash: cash / total };
+  const total = TARGET_CLASSES.reduce((sum, key) => sum + totals[key], 0);
+  if (total <= 0) return { crypto: 0, stock: 0, fixedIncome: 0, cash: 0 };
+  return {
+    crypto: totals.crypto / total,
+    stock: totals.stock / total,
+    fixedIncome: totals.fixedIncome / total,
+    cash: totals.cash / total,
+  };
 }
 
 export interface Drift {
@@ -122,7 +134,7 @@ export function computeDrift(
   current: TargetAllocation,
   target: TargetAllocation,
 ): Drift[] {
-  return (["crypto", "stock", "cash"] as (keyof TargetAllocation)[]).map(
+  return TARGET_CLASSES.map(
     (k) => ({ cls: k, current: current[k], target: target[k], diff: current[k] - target[k] }),
   );
 }

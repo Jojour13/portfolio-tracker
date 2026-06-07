@@ -2,7 +2,7 @@
   "name": "folio",
   "version": "0.1.0",
   "private": true,
-  "description": "A clean, real-time multi-asset portfolio dashboard (crypto, IDX/SGX/US stocks, multi-currency cash).",
+  "description": "A local-first multi-asset portfolio dashboard for crypto, equities, funds, fixed income, money market, and cash.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -3,19 +3,26 @@
 import { useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import { Plus, Trash2, Check, Wand2 } from "lucide-react";
-import type { Asset, Currency } from "@/lib/types";
-import { CURRENCIES } from "@/lib/types";
+import type { Asset, Currency, SearchableAssetType, TargetAllocation } from "@/lib/types";
+import {
+  ASSET_TYPE_LABEL,
+  CURRENCIES,
+  TARGET_CLASSES,
+  TARGET_CLASS_LABEL,
+  TRADEABLE_ASSET_TYPES,
+  targetClassForAssetType,
+} from "@/lib/types";
 import type { SearchResult } from "@/app/api/search/route";
 import { useFolio } from "@/lib/store";
 import { usePrices } from "@/hooks/usePrices";
-import { convert } from "@/lib/portfolio";
+import { convertOrNull } from "@/lib/portfolio";
 import { TickerSearch } from "./TickerSearch";
 import { Money } from "./Money";
 import { Card, Button, Input, Select, Label } from "./ui";
 import { formatNumber, formatPercent, formatMoney } from "@/lib/format";
 import { cn, colorForIndex } from "@/lib/utils";
 
-const TYPE_TABS = ["crypto", "stock", "cash"] as const;
+const TYPE_TABS = [...TRADEABLE_ASSET_TYPES, "cash"] as const;
 type Tab = (typeof TYPE_TABS)[number];
 
 export function ModelBuilder() {
@@ -37,7 +44,7 @@ export function ModelBuilder() {
         const price = h.type === "cash" ? 1 : quotes[h.quoteId]?.price ?? null;
         const valueBase =
           price !== null
-            ? convert(h.qty * price, h.currency, base, ratesPerUsd)
+            ? convertOrNull(h.qty * price, h.currency, base, ratesPerUsd)
             : null;
         return { ...h, price, valueBase };
       }),
@@ -45,25 +52,42 @@ export function ModelBuilder() {
   );
 
   const total = valued.reduce((s, v) => s + (v.valueBase ?? 0), 0);
+  const unconvertedCount = valued.filter(
+    (v) => v.price !== null && v.valueBase === null,
+  ).length;
 
   const classMix = useMemo(() => {
-    const t = { crypto: 0, stock: 0, cash: 0 };
-    for (const v of valued) t[v.type] += v.valueBase ?? 0;
+    const t: TargetAllocation = {
+      crypto: 0,
+      stock: 0,
+      fixedIncome: 0,
+      cash: 0,
+    };
+    for (const v of valued) {
+      t[targetClassForAssetType(v.type)] += v.valueBase ?? 0;
+    }
     return t;
   }, [valued]);
 
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   function saveAsTarget() {
-    if (total <= 0) return;
-    updateSettings({
+    if (total <= 0 || unconvertedCount > 0) return;
+    setSaveError(null);
+    const result = updateSettings({
       riskProfile: "custom",
       targetAllocation: {
         crypto: classMix.crypto / total,
         stock: classMix.stock / total,
+        fixedIncome: classMix.fixedIncome / total,
         cash: classMix.cash / total,
       },
       rebalanceThreshold: rebalanceThreshold ?? 0.07,
     });
+    if (!result.ok) {
+      setSaveError(result.error);
+      return;
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -91,7 +115,15 @@ export function ModelBuilder() {
           </p>
         </Card>
       ) : (
-        <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
+        <div className="space-y-3">
+          {unconvertedCount > 0 && (
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
+              {unconvertedCount} model holding
+              {unconvertedCount === 1 ? "" : "s"} cannot be converted to{" "}
+              {base}. Target saving is paused until FX data is available.
+            </div>
+          )}
+          <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
           {/* pie */}
           <Card className="p-5">
             <div className="relative h-[220px]">
@@ -126,16 +158,25 @@ export function ModelBuilder() {
             </div>
             {/* class mix */}
             <div className="mt-3 space-y-1 text-xs">
-              {(["crypto", "stock", "cash"] as const).map((k) => (
+              {TARGET_CLASSES.map((k) => (
                 <div key={k} className="flex justify-between text-zinc-400">
-                  <span className="capitalize">{k}</span>
+                  <span>{TARGET_CLASS_LABEL[k]}</span>
                   <span className="tabular">
                     {total > 0 ? formatPercent(classMix[k] / total, 0) : "—"}
                   </span>
                 </div>
               ))}
             </div>
-            <Button className="mt-4 w-full" onClick={saveAsTarget}>
+            {saveError && (
+              <p className="mt-3 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+                {saveError}
+              </p>
+            )}
+            <Button
+              className="mt-4 w-full"
+              onClick={saveAsTarget}
+              disabled={total <= 0 || unconvertedCount > 0}
+            >
               {saved ? (
                 <>
                   <Check size={16} /> Saved as target
@@ -198,6 +239,7 @@ export function ModelBuilder() {
                   />
 
                   <button
+                    type="button"
                     onClick={() => removeModelHolding(v.id)}
                     className="rounded-lg p-1.5 text-zinc-600 transition hover:bg-rose-500/10 hover:text-rose-400"
                   >
@@ -208,6 +250,7 @@ export function ModelBuilder() {
             })}
             <div className="px-4 py-2.5 text-right">
               <button
+                type="button"
                 onClick={clearModel}
                 className="text-xs text-zinc-500 hover:text-rose-400"
               >
@@ -215,6 +258,7 @@ export function ModelBuilder() {
               </button>
             </div>
           </Card>
+        </div>
         </div>
       )}
     </div>
@@ -232,7 +276,7 @@ function AddRow({
   const [qtyInput, setQty] = useState("");
 
   const isCash = tab === "cash";
-  const usesLots = tab === "stock" && (picked?.lotSize ?? 1) > 1;
+  const usesLots = !isCash && (picked?.lotSize ?? 1) > 1;
   const qtyNum = parseFloat(qtyInput) || 0;
   const canAdd = isCash ? qtyNum > 0 : picked && qtyNum > 0;
 
@@ -273,17 +317,18 @@ function AddRow({
 
   return (
     <Card className="relative z-30 overflow-visible p-4">
-      <div className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-zinc-900/60 p-1">
+      <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-zinc-900/60 p-1 sm:grid-cols-3">
         {TYPE_TABS.map((t) => (
           <button
+            type="button"
             key={t}
             onClick={() => reset(t)}
             className={cn(
-              "rounded-lg py-1.5 text-sm font-medium capitalize transition-colors",
+              "rounded-lg px-2 py-1.5 text-xs font-medium transition-colors sm:text-sm",
               tab === t ? "bg-zinc-700 text-white" : "text-zinc-400 hover:text-zinc-200",
             )}
           >
-            {t}
+            {ASSET_TYPE_LABEL[t]}
           </button>
         ))}
       </div>
@@ -306,8 +351,23 @@ function AddRow({
             </>
           ) : (
             <>
-              <Label>{tab === "crypto" ? "Coin" : "Ticker"}</Label>
-              <TickerSearch type={tab as "crypto" | "stock"} onSelect={setPicked} />
+              <Label>
+                {tab === "crypto"
+                  ? "Coin"
+                  : tab === "fund"
+                    ? "Fund / ETF"
+                    : tab === "bond"
+                      ? "Bond fund"
+                      : tab === "money_market"
+                        ? "Money market fund"
+                        : "Ticker"}
+              </Label>
+              <TickerSearch
+                key={tab}
+                type={tab as SearchableAssetType}
+                onSelect={setPicked}
+                onQueryChange={() => setPicked(null)}
+              />
             </>
           )}
         </div>

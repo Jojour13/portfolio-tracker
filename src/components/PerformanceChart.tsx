@@ -12,8 +12,11 @@ import {
 } from "recharts";
 import type { SeriesPoint } from "@/lib/history";
 import type { Currency } from "@/lib/types";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatPercent } from "@/lib/format";
 import { useFolio } from "@/lib/store";
+
+type PerformanceChartMode = "value" | "return";
+type PerformanceChartPoint = Pick<SeriesPoint, "date" | "value" | "partial">;
 
 export function PerformanceChart({
   data,
@@ -21,16 +24,19 @@ export function PerformanceChart({
   positive,
   height = 240,
   intraday = false,
+  mode = "value",
 }: {
-  data: SeriesPoint[];
+  data: PerformanceChartPoint[];
   base: Currency;
   positive: boolean;
   height?: number;
   intraday?: boolean;
+  mode?: PerformanceChartMode;
 }) {
   const censored = useFolio((s) => s.censored);
   const stroke = positive ? "#34d399" : "#f43f5e";
   const [hoverX, setHoverX] = useState<string | null>(null);
+  const valueLabel = mode === "return" ? "TWR" : "Value";
 
   if (data.length < 2) {
     return (
@@ -79,8 +85,12 @@ export function PerformanceChart({
           }}
           labelStyle={{ color: "#a1a1aa" }}
           formatter={(v: number) => [
-            censored ? "*****" : formatMoney(v, base, { compact: true }),
-            "Value",
+            mode === "return"
+              ? formatPercent(v)
+              : censored
+                ? "*****"
+                : formatMoney(v, base, { compact: true }),
+            valueLabel,
           ]}
         />
         {hoverX && (

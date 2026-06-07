@@ -14,8 +14,11 @@ import {
   activateCloud,
   deactivateCloud,
   pullAll,
+  pushAll,
 } from "./cloud";
-import { useFolio } from "./store";
+import { clearLocalOnlyPlanSettings, DEFAULT_SETTINGS } from "./settings";
+import { isBuiltInSamplePortfolio, useFolio } from "./store";
+import { validateReplacement } from "./portfolioValidation";
 
 interface AuthValue {
   /** Whether cloud sync is configured at all (env vars present). */
@@ -23,6 +26,7 @@ interface AuthValue {
   user: User | null;
   loading: boolean;
   syncing: boolean;
+  syncError: string | null;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signUp: (email: string, password: string) => Promise<{ error?: string; needsConfirm?: boolean }>;
   signOut: () => Promise<void>;
@@ -36,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(isCloudEnabled);
   const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const replaceAll = useFolio((s) => s.replaceAll);
   const lastUserId = useRef<string | null>(null);
 
@@ -45,15 +50,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!sb) return;
     activateCloud(sb, session.user.id);
     setSyncing(true);
+    setSyncError(null);
     try {
       const data = await pullAll();
       if (data) {
-        replaceAll({
+        const local = useFolio.getState();
+        const remoteEmpty = data.assets.length === 0 && data.transactions.length === 0;
+        const localHasPortfolio =
+          local.assets.length > 0 ||
+          local.transactions.length > 0;
+        const localIsDemo = isBuiltInSamplePortfolio(
+          local.assets,
+          local.transactions,
+          local.modelPortfolio,
+        );
+
+        if (remoteEmpty && localHasPortfolio) {
+          if (local.localDataWarning || localIsDemo) {
+            const result = replaceAll({
+              assets: [],
+              transactions: [],
+              settings: clearLocalOnlyPlanSettings(data.settings),
+              modelPortfolio: [],
+            });
+            if (!result.ok) {
+              setSyncError(`Cloud sync skipped: ${result.error}`);
+            } else if (local.localDataWarning) {
+              setSyncError(
+                "Cloud sync did not seed remote data because saved local data failed validation. Restore a known-good backup from Settings if needed.",
+              );
+            }
+            return;
+          }
+          const validationError = validateReplacement({
+            assets: local.assets,
+            transactions: local.transactions,
+            settings: local.settings,
+            modelPortfolio: local.modelPortfolio,
+          });
+          if (validationError) {
+            setSyncError(`Cloud seed skipped: ${validationError}`);
+            return;
+          }
+          await pushAll(local.assets, local.transactions, local.settings);
+          return;
+        }
+
+        const result = replaceAll({
           assets: data.assets,
           transactions: data.transactions,
-          settings: data.settings,
+          settings: clearLocalOnlyPlanSettings(data.settings),
+          modelPortfolio: [],
         });
+        if (!result.ok) {
+          setSyncError(`Cloud sync skipped: ${result.error}`);
+        }
       }
+    } catch (error) {
+      setSyncError(
+        error instanceof Error ? `Cloud sync failed: ${error.message}` : "Cloud sync failed.",
+      );
     } finally {
       setSyncing(false);
     }
@@ -83,9 +139,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         void syncDown(session);
       } else if (!session) {
         lastUserId.current = null;
+        setSyncError(null);
         deactivateCloud();
         // clear the in-memory view on logout (privacy on shared devices)
-        replaceAll({ assets: [], transactions: [] });
+        replaceAll({
+          assets: [],
+          transactions: [],
+          settings: clearLocalOnlyPlanSettings(DEFAULT_SETTINGS),
+          modelPortfolio: [],
+        });
       }
     });
 
@@ -99,6 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       loading,
       syncing,
+      syncError,
       async signIn(email, password) {
         const sb = getSupabase();
         if (!sb) return { error: "Cloud not configured" };
@@ -136,7 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error?.message };
       },
     }),
-    [user, loading, syncing],
+    [user, loading, syncing, syncError],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

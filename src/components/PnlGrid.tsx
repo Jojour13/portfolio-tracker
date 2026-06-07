@@ -84,11 +84,14 @@ export function PnlGrid({
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-medium text-zinc-300">Profit &amp; loss</h2>
-          <p className="text-[11px] text-zinc-500">amounts in {base}</p>
+          <p className="text-[11px] text-zinc-500">
+            amounts in {base}; historical FX uses current rates
+          </p>
         </div>
         <div className="flex gap-1 rounded-lg bg-zinc-900/60 p-0.5">
           {MODES.map((m) => (
             <button
+              type="button"
               key={m.k}
               onClick={() => setMode(m.k)}
               className={cn(
@@ -300,6 +303,7 @@ function DayView({
     <div>
       <div className="mb-3 flex items-center justify-between">
         <button
+          type="button"
           onClick={() => setMonthIdx(Math.max(0, monthIdx - 1))}
           disabled={monthIdx <= 0}
           className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 disabled:opacity-30"
@@ -320,6 +324,7 @@ function DayView({
           </div>
         </div>
         <button
+          type="button"
           onClick={() => setMonthIdx(Math.min(monthKeys.length - 1, monthIdx + 1))}
           disabled={monthIdx >= monthKeys.length - 1}
           className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 disabled:opacity-30"

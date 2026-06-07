@@ -11,8 +11,9 @@ async function fetchJson(url: string) {
 }
 
 /**
- * Fetch live quotes for every asset (crypto via CoinGecko, stocks via Yahoo)
- * plus USD-based FX rates, polling on the configured interval.
+ * Fetch live quotes for every priced asset plus USD-based FX rates, polling on
+ * the configured interval. Yahoo handles listed instruments and current crypto
+ * search results; CoinGecko remains supported for legacy crypto assets.
  */
 export function usePrices(assets: Asset[], refreshSec: number) {
   const cryptoIds = useMemo(
@@ -29,7 +30,7 @@ export function usePrices(assets: Asset[], refreshSec: number) {
     [assets],
   );
 
-  const stockSymbols = useMemo(
+  const yahooSymbols = useMemo(
     () =>
       [
         ...new Set(
@@ -45,15 +46,16 @@ export function usePrices(assets: Asset[], refreshSec: number) {
 
   const cryptoQ = useQuery({
     queryKey: ["crypto", cryptoIds],
-    queryFn: () => fetchJson(`/api/crypto?ids=${cryptoIds}`),
+    queryFn: () => fetchJson(`/api/crypto?ids=${encodeURIComponent(cryptoIds)}`),
     enabled: cryptoIds.length > 0,
     refetchInterval,
   });
 
-  const stockQ = useQuery({
-    queryKey: ["stocks", stockSymbols],
-    queryFn: () => fetchJson(`/api/quote?symbols=${stockSymbols}`),
-    enabled: stockSymbols.length > 0,
+  const yahooQ = useQuery({
+    queryKey: ["yahoo-quotes", yahooSymbols],
+    queryFn: () =>
+      fetchJson(`/api/quote?symbols=${encodeURIComponent(yahooSymbols)}`),
+    enabled: yahooSymbols.length > 0,
     refetchInterval,
   });
 
@@ -67,28 +69,38 @@ export function usePrices(assets: Asset[], refreshSec: number) {
   const quotes = useMemo<Record<string, Quote>>(
     () => ({
       ...((cryptoQ.data?.quotes as Record<string, Quote>) ?? {}),
-      ...((stockQ.data?.quotes as Record<string, Quote>) ?? {}),
+      ...((yahooQ.data?.quotes as Record<string, Quote>) ?? {}),
     }),
-    [cryptoQ.data, stockQ.data],
+    [cryptoQ.data, yahooQ.data],
   );
 
   const ratesPerUsd = useMemo<Record<string, number>>(
     () => (fxQ.data?.rates as Record<string, number>) ?? { USD: 1 },
     [fxQ.data],
   );
+  const fxFallback = Boolean(fxQ.data?.fallback);
+  const fxError =
+    typeof fxQ.data?.error === "string" ? (fxQ.data.error as string) : null;
+  const fxAsOf = typeof fxQ.data?.asOf === "string" ? fxQ.data.asOf : null;
+  const fxProvider =
+    typeof fxQ.data?.provider === "string" ? fxQ.data.provider : null;
 
   return {
     quotes,
     ratesPerUsd,
-    isLoading: cryptoQ.isLoading || stockQ.isLoading || fxQ.isLoading,
-    isFetching: cryptoQ.isFetching || stockQ.isFetching,
+    fxFallback,
+    fxError,
+    fxAsOf,
+    fxProvider,
+    isLoading: cryptoQ.isLoading || yahooQ.isLoading || fxQ.isLoading,
+    isFetching: cryptoQ.isFetching || yahooQ.isFetching,
     lastUpdated: Math.max(
       cryptoQ.dataUpdatedAt ?? 0,
-      stockQ.dataUpdatedAt ?? 0,
+      yahooQ.dataUpdatedAt ?? 0,
     ),
     refetch: () => {
       cryptoQ.refetch();
-      stockQ.refetch();
+      yahooQ.refetch();
       fxQ.refetch();
     },
   };

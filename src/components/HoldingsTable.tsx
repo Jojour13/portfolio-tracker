@@ -1,6 +1,11 @@
 "use client";
 
-import type { Currency, ValuedPosition } from "@/lib/types";
+import {
+  ASSET_TYPE_LABEL,
+  type AssetType,
+  type Currency,
+  type ValuedPosition,
+} from "@/lib/types";
 import { Card, Badge } from "./ui";
 import { Money } from "./Money";
 import {
@@ -11,9 +16,12 @@ import {
 } from "@/lib/format";
 import { cn, colorForIndex } from "@/lib/utils";
 
-const TYPE_STYLE: Record<string, string> = {
+const TYPE_STYLE: Record<AssetType, string> = {
   crypto: "bg-amber-500/15 text-amber-300",
   stock: "bg-sky-500/15 text-sky-300",
+  fund: "bg-cyan-500/15 text-cyan-300",
+  bond: "bg-violet-500/15 text-violet-300",
+  money_market: "bg-teal-500/15 text-teal-300",
   cash: "bg-emerald-500/15 text-emerald-300",
 };
 
@@ -62,7 +70,7 @@ export function HoldingsTable({
                     {p.asset.symbol}
                   </span>
                   <Badge className={TYPE_STYLE[p.asset.type]}>
-                    {p.asset.type}
+                    {ASSET_TYPE_LABEL[p.asset.type]}
                   </Badge>
                   {p.leverage > 1.0001 && (
                     <Badge className="bg-amber-500/15 text-amber-300">
@@ -107,7 +115,28 @@ export function HoldingsTable({
                 compact
                 className="text-sm font-medium text-white tabular"
               />
+              {p.asset.type !== "cash" && p.price === null ? (
+                <div className="text-[11px] text-amber-400">No quote</div>
+              ) : p.marketValueBase === null ? (
+                <div className="text-[11px] text-amber-400">No FX rate</div>
+              ) : null}
+              {p.borrowed > 0 && (
+                <div className="text-[11px] text-amber-400/80 tabular">
+                  debt {formatMoney(p.borrowed, p.asset.currency, { compact: true })}
+                </div>
+              )}
               <div className="text-[11px] text-zinc-500 md:hidden">Value</div>
+            </div>
+
+            <div className="text-right md:hidden">
+              <div className="text-sm text-zinc-200 tabular">
+                {p.asset.type === "cash"
+                  ? "-"
+                  : formatMoney(p.price, p.asset.currency)}
+              </div>
+              <div className="text-[11px] text-zinc-500 tabular">
+                avg {formatMoney(p.avgCost, p.asset.currency)}
+              </div>
             </div>
 
             {/* today */}
@@ -119,6 +148,9 @@ export function HoldingsTable({
 
             {/* p/l */}
             <div className="col-span-2 text-right md:col-span-2">
+              <div className={cn("mb-0.5 text-[11px] tabular md:hidden", pnlColor(p.dayChangePct))}>
+                Today {formatPercent(p.dayChangePct)}
+              </div>
               <div
                 className={cn(
                   "text-sm font-medium tabular",

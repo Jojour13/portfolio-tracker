@@ -19,14 +19,16 @@ export function relevantBenchmarks(assets: Asset[]): Benchmark[] {
 
   if (has((a) => a.type === "crypto"))
     out.push({ key: "btc", symbol: "BTC-USD", label: "Bitcoin", color: "#f59e0b" });
-  if (has((a) => a.type === "stock" && a.quoteId.endsWith(".JK")))
+  if (has((a) => (a.type === "stock" || a.type === "fund") && a.quoteId.endsWith(".JK")))
     out.push({ key: "ihsg", symbol: "^JKSE", label: "IHSG", color: "#38bdf8" });
-  if (has((a) => a.type === "stock" && a.quoteId.endsWith(".SI")))
+  if (has((a) => (a.type === "stock" || a.type === "fund") && a.quoteId.endsWith(".SI")))
     out.push({ key: "sti", symbol: "^STI", label: "STI (SG)", color: "#34d399" });
-  if (has((a) => a.type === "stock" && a.quoteId.endsWith(".SW")))
+  if (has((a) => (a.type === "stock" || a.type === "fund") && a.quoteId.endsWith(".SW")))
     out.push({ key: "smi", symbol: "^SSMI", label: "SMI (CH)", color: "#fb7185" });
-  if (has((a) => a.type === "stock" && !a.quoteId.includes(".")))
+  if (has((a) => (a.type === "stock" || a.type === "fund") && !a.quoteId.includes(".")))
     out.push({ key: "spx", symbol: "^GSPC", label: "S&P 500", color: "#a78bfa" });
+  if (has((a) => a.type === "bond"))
+    out.push({ key: "bnd", symbol: "BND", label: "US Total Bond", color: "#c084fc" });
 
   return out;
 }
@@ -61,11 +63,12 @@ export function buildComparison(
   benchSeries: RawSeries,
   benchmarks: Benchmark[],
 ): { data: ComparisonRow[]; summary: ComparisonSummary[]; portReturn: number } {
-  if (portfolioWindow.length < 2)
+  const completeWindow = portfolioWindow.filter((p) => !p.partial);
+  if (completeWindow.length < 2)
     return { data: [], summary: [], portReturn: 0 };
 
-  const startDate = portfolioWindow[0].date;
-  const ret = dailyReturns(portfolioWindow);
+  const startDate = completeWindow[0].date;
+  const ret = dailyReturns(completeWindow);
 
   // portfolio % (TWR) keyed by date
   const portMap = new Map<string, number>();

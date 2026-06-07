@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Quote } from "@/lib/types";
+import {
+  MAX_QUOTE_SYMBOLS,
+  YAHOO_SYMBOL_RE,
+  fetchWithTimeout,
+  parseCsvList,
+} from "@/lib/apiGuards";
 
-// Stock quotes (US / SGX / IDX) via Yahoo Finance's public chart endpoint.
-// The chart endpoint works without auth and returns price + previous close +
-// the native currency in `meta`. We fetch each symbol in parallel.
+// Quotes for Yahoo-supported symbols: equities, funds/ETFs, bond funds, money
+// market funds, and Yahoo crypto pairs such as BTC-USD. The chart endpoint
+// works without auth and returns price + previous close + native currency.
+// We fetch each symbol in parallel.
 export const revalidate = 0;
 
 const YF = "https://query1.finance.yahoo.com/v8/finance/chart";
 
 async function fetchOne(symbol: string): Promise<Quote | null> {
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `${YF}/${encodeURIComponent(symbol)}?range=1d&interval=1d`,
       {
         headers: {
@@ -34,6 +41,13 @@ async function fetchOne(symbol: string): Promise<Quote | null> {
             ? meta.previousClose
             : null,
       currency: meta.currency,
+      source: "yahoo",
+      asOf:
+        typeof meta.regularMarketTime === "number"
+          ? new Date(meta.regularMarketTime * 1000).toISOString()
+          : undefined,
+      marketState: meta.marketState,
+      delayed: true,
     };
   } catch {
     return null;
@@ -42,9 +56,18 @@ async function fetchOne(symbol: string): Promise<Quote | null> {
 
 export async function GET(req: NextRequest) {
   const symbolsParam = req.nextUrl.searchParams.get("symbols");
-  if (!symbolsParam) return NextResponse.json({ quotes: {} });
+  const parsed = parseCsvList(symbolsParam, {
+    label: "symbols",
+    maxItems: MAX_QUOTE_SYMBOLS,
+    maxLength: 32,
+    pattern: YAHOO_SYMBOL_RE,
+  });
+  if (!parsed.ok) {
+    return NextResponse.json({ quotes: {}, error: parsed.error }, { status: 400 });
+  }
+  if (!parsed.values.length) return NextResponse.json({ quotes: {} });
 
-  const symbols = symbolsParam.split(",").map((s) => s.trim()).filter(Boolean);
+  const symbols = parsed.values;
   const results = await Promise.all(symbols.map(fetchOne));
 
   const quotes: Record<string, Quote> = {};

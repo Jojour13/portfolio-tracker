@@ -17,6 +17,7 @@ export function Button({
   className,
   variant = "primary",
   size = "md",
+  type = "button",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "ghost" | "outline" | "danger";
@@ -33,6 +34,7 @@ export function Button({
   const sizes = { sm: "h-8 px-3 text-sm", md: "h-10 px-4 text-sm" };
   return (
     <button
+      type={type}
       className={cn(
         "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none",
         variants[variant],

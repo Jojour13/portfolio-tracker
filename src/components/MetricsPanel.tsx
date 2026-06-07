@@ -31,11 +31,11 @@ function Chip({
 export function MetricsPanel({ m }: { m: Metrics }) {
   return (
     <Card className="p-4">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-sm font-medium text-zinc-300">
           Performance metrics
         </h2>
-        <span className="text-[11px] text-zinc-500">
+        <span className="text-[11px] leading-snug text-zinc-500">
           deposits &amp; withdrawals excluded (TWR)
         </span>
       </div>

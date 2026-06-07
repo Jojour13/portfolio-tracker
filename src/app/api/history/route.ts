@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  MAX_HISTORY_SYMBOLS,
+  YAHOO_SYMBOL_RE,
+  fetchWithTimeout,
+  parseCsvList,
+} from "@/lib/apiGuards";
 
 // Daily close history per symbol via Yahoo Finance chart. Used to reconstruct
 // the portfolio's value over time. One request per symbol, run in parallel.
@@ -28,7 +34,7 @@ async function fetchSeries(
   interval: string,
 ): Promise<Series | null> {
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `${YF}/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`,
       {
         headers: { "User-Agent": "Mozilla/5.0 (compatible; Folio/0.1)" },
@@ -60,9 +66,18 @@ export async function GET(req: NextRequest) {
   const symbolsParam = req.nextUrl.searchParams.get("symbols");
   const tf = req.nextUrl.searchParams.get("range") ?? "1y";
   const { range, interval } = TF_MAP[tf] ?? { range: "1y", interval: "1d" };
-  if (!symbolsParam) return NextResponse.json({ series: {} });
+  const parsed = parseCsvList(symbolsParam, {
+    label: "symbols",
+    maxItems: MAX_HISTORY_SYMBOLS,
+    maxLength: 32,
+    pattern: YAHOO_SYMBOL_RE,
+  });
+  if (!parsed.ok) {
+    return NextResponse.json({ series: {}, error: parsed.error }, { status: 400 });
+  }
+  if (!parsed.values.length) return NextResponse.json({ series: {} });
 
-  const symbols = symbolsParam.split(",").map((s) => s.trim()).filter(Boolean);
+  const symbols = parsed.values;
   const results = await Promise.all(
     symbols.map((s) => fetchSeries(s, range, interval)),
   );

@@ -1,19 +1,32 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Check, SlidersHorizontal, ArrowRight } from "lucide-react";
-import type { TargetAllocation, ValuedPosition } from "@/lib/types";
+import {
+  AlertTriangle,
+  Check,
+  SlidersHorizontal,
+  ArrowRight,
+  XCircle,
+} from "lucide-react";
+import {
+  TARGET_CLASS_LABEL,
+  targetClassForAssetType,
+  type TargetAllocation,
+  type ValuedPosition,
+} from "@/lib/types";
 import { currentAllocation, computeDrift, maxDrift } from "@/lib/risk";
+import { useFolio } from "@/lib/store";
 import { Card, Button } from "./ui";
 import { Money } from "./Money";
 import { formatPercent, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Currency } from "@/lib/types";
 
-const CLASS_LABEL = { crypto: "Crypto", stock: "Stocks", cash: "Cash" } as const;
 const CLASS_COLOR = {
   crypto: "bg-amber-400",
   stock: "bg-sky-400",
+  fixedIncome: "bg-violet-400",
   cash: "bg-emerald-400",
 } as const;
 
@@ -31,12 +44,33 @@ export function AllocationVsTarget({
   target,
   base,
   threshold = 0.07,
+  valuationIncomplete = false,
 }: {
   positions: ValuedPosition[];
   target?: TargetAllocation;
   base: Currency;
   threshold?: number;
+  valuationIncomplete?: boolean;
 }) {
+  const updateSettings = useFolio((s) => s.updateSettings);
+  const [clearError, setClearError] = useState<string | null>(null);
+
+  function clearTarget() {
+    setClearError(null);
+    const ok = confirm(
+      "Clear your target allocation and stop drift comparisons? This does not change holdings, transactions, or model portfolio rows.",
+    );
+    if (!ok) return;
+    const result = updateSettings({
+      riskProfile: undefined,
+      targetAllocation: undefined,
+      rebalanceThreshold: undefined,
+    });
+    if (!result.ok) {
+      setClearError(result.error);
+    }
+  }
+
   if (!target) {
     return (
       <Card className="flex flex-col items-center gap-2 p-5 text-center">
@@ -49,7 +83,7 @@ export function AllocationVsTarget({
           your real portfolio and flag when you drift off target — it never
           changes your holdings.
         </p>
-        <Link href="/settings#risk">
+        <Link href="/design#risk">
           <Button size="sm" variant="outline">
             Set a target
           </Button>
@@ -61,7 +95,7 @@ export function AllocationVsTarget({
   const current = currentAllocation(positions);
   const drifts = computeDrift(current, target);
   const worst = maxDrift(drifts);
-  const offTarget = worst > threshold;
+  const offTarget = !valuationIncomplete && worst > threshold;
   const total = positions.reduce((s, p) => s + (p.marketValueBase ?? 0), 0);
 
   // Build concrete (non-advisory) rebalance suggestions.
@@ -73,7 +107,11 @@ export function AllocationVsTarget({
     for (const o of over) {
       const amountBase = o.diff * total;
       const holdings = positions
-        .filter((p) => p.asset.type === o.cls && (p.marketValueBase ?? 0) > 0)
+        .filter(
+          (p) =>
+            targetClassForAssetType(p.asset.type) === o.cls &&
+            (p.marketValueBase ?? 0) > 0,
+        )
         .sort((a, b) => (b.marketValueBase ?? 0) - (a.marketValueBase ?? 0));
       const top = holdings[0];
       let units: number | undefined;
@@ -107,19 +145,43 @@ export function AllocationVsTarget({
         <h2 className="text-sm font-medium text-zinc-300">
           Allocation vs target
         </h2>
-        <Link
-          href="/settings#risk"
-          className="text-xs text-zinc-500 hover:text-zinc-300"
-        >
-          Adjust
-        </Link>
+        <div className="flex items-center gap-1">
+          <Link
+            href="/design#risk"
+            className="px-2 py-1 text-xs text-zinc-500 hover:text-zinc-300"
+          >
+            Adjust
+          </Link>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={clearTarget}
+            className="h-7 px-2 text-xs text-zinc-500 hover:text-rose-300"
+          >
+            <XCircle size={13} /> Clear
+          </Button>
+        </div>
       </div>
+
+      {clearError && (
+        <div className="mb-3 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+          {clearError}
+        </div>
+      )}
+
+      {valuationIncomplete && (
+        <div className="mb-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-100/85">
+          Allocation excludes holdings without quotes or FX conversion.
+          Rebalance suggestions are paused until valuation is complete.
+        </div>
+      )}
 
       <div className="space-y-3">
         {drifts.map((d) => (
           <div key={d.cls}>
             <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="text-zinc-300">{CLASS_LABEL[d.cls]}</span>
+              <span className="text-zinc-300">{TARGET_CLASS_LABEL[d.cls]}</span>
               <span className="tabular text-zinc-500">
                 <span className="text-zinc-300">{formatPercent(d.current, 0)}</span>
                 {" / "}
@@ -154,7 +216,12 @@ export function AllocationVsTarget({
         ))}
       </div>
 
-      {!offTarget ? (
+      {valuationIncomplete ? (
+        <div className="mt-4 flex items-center gap-2 rounded-xl bg-zinc-800/50 px-3 py-2.5 text-xs text-zinc-400">
+          <AlertTriangle size={14} className="shrink-0 text-amber-300" />
+          Partial allocation only.
+        </div>
+      ) : !offTarget ? (
         <div className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-300">
           <Check size={14} className="shrink-0" />
           On target — within {formatPercent(threshold, 0)} of your plan.
@@ -162,8 +229,13 @@ export function AllocationVsTarget({
       ) : (
         <div className="mt-4 space-y-2">
           <div className="flex items-center gap-1.5 text-xs font-medium text-amber-300">
-            <AlertTriangle size={14} /> Off balance — consider rebalancing:
+            <AlertTriangle size={14} /> Arithmetic drift from your target:
           </div>
+          <p className="text-[10px] leading-relaxed text-zinc-600">
+            Illustrative only, based on the target mix you chose. Taxes, fees,
+            liquidity, suitability, and jurisdiction rules are not considered.
+            This is <b>not financial advice</b>.
+          </p>
           <ul className="space-y-1.5">
             {suggestions.map((s, i) => (
               <li
@@ -179,11 +251,11 @@ export function AllocationVsTarget({
                 />
                 <span>
                   {s.kind === "trim" ? "Trim" : "Add to"}{" "}
-                  <b className="text-zinc-100">{CLASS_LABEL[s.cls]}</b> by ~
+                  <b className="text-zinc-100">{TARGET_CLASS_LABEL[s.cls]}</b> by ~
                   <Money value={s.amountBase} currency={base} compact />
                   {s.kind === "trim" && s.symbol && s.units && s.units > 0 && (
                     <>
-                      {" "}— e.g. sell ~{formatNumber(s.units, s.isLots ? 0 : 4)}{" "}
+                      {" "}For example, sell ~{formatNumber(s.units, s.isLots ? 0 : 4)}{" "}
                       {s.isLots ? "lot" : "unit"}
                       {s.units >= 2 ? "s" : ""} of{" "}
                       <b className="text-zinc-100">{s.symbol}</b>
@@ -195,9 +267,7 @@ export function AllocationVsTarget({
             ))}
           </ul>
           <p className="text-[10px] leading-relaxed text-zinc-600">
-            Illustrative only, based on your target mix — <b>not financial
-            advice</b>. You decide what to trade; Folio never moves anything for
-            you.
+            You decide what to trade; Folio never moves anything for you.
           </p>
         </div>
       )}

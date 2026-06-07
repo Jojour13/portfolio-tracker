@@ -1,4 +1,5 @@
 import { AddTransactionForm } from "@/components/AddTransactionForm";
+import { CashConverter } from "@/components/CashConverter";
 
 export default function AddPage() {
   return (
@@ -8,11 +9,13 @@ export default function AddPage() {
           Add transaction
         </h1>
         <p className="mt-1 text-sm text-zinc-400">
-          Buy or sell crypto, stocks, or record a cash balance. Your average
-          cost updates automatically.
+          Buy or sell crypto, stocks, funds, bond funds, and money market
+          instruments with optional cash settlement, or record deposits,
+          withdrawals, income, and FX conversions.
         </p>
       </div>
       <AddTransactionForm />
+      <CashConverter />
     </div>
   );
 }

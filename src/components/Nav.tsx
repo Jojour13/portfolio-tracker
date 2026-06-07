@@ -70,6 +70,7 @@ export function Nav() {
                 {user.email}
               </span>
               <button
+                type="button"
                 onClick={() => signOut()}
                 title="Sign out"
                 className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-zinc-800/60 hover:text-rose-300"

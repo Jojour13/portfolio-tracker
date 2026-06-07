@@ -6,7 +6,41 @@
 // the trade history stays the single source of truth.
 // ---------------------------------------------------------------------------
 
-export type AssetType = "crypto" | "stock" | "cash";
+export type AssetType =
+  | "crypto"
+  | "stock"
+  | "fund"
+  | "bond"
+  | "money_market"
+  | "cash";
+
+export type SearchableAssetType = Exclude<AssetType, "cash">;
+
+export const ASSET_TYPES: AssetType[] = [
+  "crypto",
+  "stock",
+  "fund",
+  "bond",
+  "money_market",
+  "cash",
+];
+
+export const TRADEABLE_ASSET_TYPES: SearchableAssetType[] = [
+  "crypto",
+  "stock",
+  "fund",
+  "bond",
+  "money_market",
+];
+
+export const ASSET_TYPE_LABEL: Record<AssetType, string> = {
+  crypto: "Crypto",
+  stock: "Stock",
+  fund: "Fund",
+  bond: "Fixed income",
+  money_market: "Money market",
+  cash: "Cash",
+};
 
 export type Currency = "USD" | "IDR" | "SGD" | "CHF" | "EUR";
 
@@ -25,13 +59,22 @@ export interface Asset {
   /** Native trading currency of the asset. */
   currency: Currency;
   quoteSource: QuoteSource;
-  /** Provider-specific id: coingecko id ("bitcoin") or yahoo symbol ("BBCA.JK"). */
+  /** Provider id: CoinGecko id ("bitcoin") or Yahoo symbol ("BTC-USD", "BBCA.JK"). */
   quoteId: string;
   /** Shares per lot. 1 for crypto / US / SG, 100 for IDX. */
   lotSize: number;
 }
 
 export type TxnSide = "buy" | "sell";
+export type CashFlowType = "external" | "income" | "transfer" | "settlement";
+export type IncomeCategory = "dividend" | "interest" | "reward" | "other";
+
+export const INCOME_CATEGORY_LABEL: Record<IncomeCategory, string> = {
+  dividend: "Dividend",
+  interest: "Interest",
+  reward: "Reward",
+  other: "Other income",
+};
 
 export interface Transaction {
   id: string;
@@ -46,6 +89,16 @@ export interface Transaction {
   /** ISO date string. */
   date: string;
   note?: string;
+  /** Shared by linked trade/cash settlement rows or paired FX transfer rows. */
+  settlementId?: string;
+  /** Cash rows only: controls whether performance treats the row as external flow. */
+  cashFlowType?: CashFlowType;
+  /** Cash income rows only: classifies income for audit/export. */
+  incomeCategory?: IncomeCategory;
+  /** Optional source holding that paid the income. */
+  incomeAssetId?: string;
+  /** Cash income rows only: tax withheld before the net cash receipt. */
+  withholdingTax?: number;
   /** Whether this trade used margin/leverage. Absent = cash (1x). */
   margin?: boolean;
   /** Leverage multiple, e.g. 3 for 3x. Absent/1 = unleveraged. */
@@ -76,9 +129,12 @@ export interface ValuedPosition extends Position {
   price: number | null;
   /** Previous close, used for the day-change figure. */
   prevClose: number | null;
+  /** Net position value after subtracting any margin borrowing. */
   marketValueNative: number | null;
+  /** Net position value after subtracting any margin borrowing, converted to base. */
   marketValueBase: number | null;
-  investedBase: number;
+  /** Own capital invested, converted to base. */
+  investedBase: number | null;
   unrealizedPnlNative: number | null;
   unrealizedPnlPct: number | null;
   /** Return measured against own capital (leveraged %). */
@@ -99,10 +155,37 @@ export type RiskProfile =
   | "aggressive"
   | "custom";
 
+export type TargetClass = "crypto" | "stock" | "fixedIncome" | "cash";
+
+export const TARGET_CLASSES: TargetClass[] = [
+  "crypto",
+  "stock",
+  "fixedIncome",
+  "cash",
+];
+
+export const TARGET_CLASS_LABEL: Record<TargetClass, string> = {
+  crypto: "Crypto",
+  stock: "Equity & funds",
+  fixedIncome: "Fixed income",
+  cash: "Cash & money market",
+};
+
+export function targetClassForAssetType(type: AssetType): TargetClass {
+  if (type === "crypto") return "crypto";
+  if (type === "bond") return "fixedIncome";
+  if (type === "cash" || type === "money_market") return "cash";
+  return "stock";
+}
+
 /** Target allocation by asset class (fractions that sum to 1). */
 export interface TargetAllocation {
   crypto: number;
+  /** Listed equities, ETFs, and general funds. */
   stock: number;
+  /** Bond / fixed-income funds and ETFs. */
+  fixedIncome: number;
+  /** Cash balances and money market funds. */
   cash: number;
 }
 
@@ -127,8 +210,24 @@ export interface PortfolioSnapshot {
   totalUnrealizedPnlPct: number;
   /** Realised P/L from closed/partially-closed positions, base currency. */
   totalRealizedBase: number;
+  /** Cash income such as dividends or interest, base currency. */
+  totalIncomeBase: number;
+  /** Tax withheld from cash income rows, base currency. */
+  totalWithholdingTaxBase: number;
   dayChangeBase: number;
   dayChangePct: number;
+  /** True when valuation totals exclude holdings, realised P/L, or income due to missing quote/FX data. */
+  valuationIncomplete: boolean;
+  /** Open non-cash positions that do not have a usable quote. */
+  unpricedPositionCount: number;
+  /** Open positions with native values that could not be converted to the base currency. */
+  unconvertedPositionCount: number;
+  /** Assets with realised P/L that could not be converted to the base currency. */
+  unconvertedRealizedPnlCount: number;
+  /** Cash income rows that could not be converted to the base currency. */
+  unconvertedIncomeCount: number;
+  /** Income withholding-tax rows that could not be converted to the base currency. */
+  unconvertedWithholdingTaxCount: number;
 }
 
 /**
@@ -154,4 +253,8 @@ export interface Quote {
   price: number;
   prevClose: number | null;
   currency?: string;
+  source?: "coingecko" | "yahoo";
+  asOf?: string;
+  marketState?: string;
+  delayed?: boolean;
 }

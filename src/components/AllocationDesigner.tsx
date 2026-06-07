@@ -6,11 +6,13 @@ import { Check } from "lucide-react";
 import { useFolio } from "@/lib/store";
 import { Card, Button } from "./ui";
 import { formatPercent } from "@/lib/format";
+import { TARGET_CLASSES, TARGET_CLASS_LABEL } from "@/lib/types";
 
 const CLASSES = [
-  { key: "crypto", label: "Crypto", color: "#f59e0b" },
-  { key: "stock", label: "Stocks", color: "#38bdf8" },
-  { key: "cash", label: "Cash", color: "#34d399" },
+  { key: "crypto", label: TARGET_CLASS_LABEL.crypto, color: "#f59e0b" },
+  { key: "stock", label: TARGET_CLASS_LABEL.stock, color: "#38bdf8" },
+  { key: "fixedIncome", label: TARGET_CLASS_LABEL.fixedIncome, color: "#a78bfa" },
+  { key: "cash", label: TARGET_CLASS_LABEL.cash, color: "#34d399" },
 ] as const;
 
 type ClassKey = (typeof CLASSES)[number]["key"];
@@ -21,13 +23,17 @@ export function AllocationDesigner() {
 
   const init = settings.targetAllocation;
   const [vals, setVals] = useState<Record<ClassKey, number>>({
-    crypto: Math.round((init?.crypto ?? 0.2) * 100),
-    stock: Math.round((init?.stock ?? 0.6) * 100),
+    crypto: Math.round((init?.crypto ?? 0.1) * 100),
+    stock: Math.round((init?.stock ?? 0.5) * 100),
+    fixedIncome: Math.round((init?.fixedIncome ?? 0.2) * 100),
     cash: Math.round((init?.cash ?? 0.2) * 100),
   });
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const total = vals.crypto + vals.stock + vals.cash || 1;
+  const rawTotal = TARGET_CLASSES.reduce((sum, key) => sum + vals[key], 0);
+  const total = rawTotal || 1;
+  const canSave = rawTotal > 0;
   const norm = (k: ClassKey) => vals[k] / total;
 
   const pieData = CLASSES.map((c) => ({
@@ -37,15 +43,25 @@ export function AllocationDesigner() {
   }));
 
   function save() {
-    updateSettings({
+    setSaveError(null);
+    if (!canSave) {
+      setSaveError("Set at least one target allocation before saving.");
+      return;
+    }
+    const result = updateSettings({
       riskProfile: "custom",
       targetAllocation: {
         crypto: norm("crypto"),
         stock: norm("stock"),
+        fixedIncome: norm("fixedIncome"),
         cash: norm("cash"),
       },
       rebalanceThreshold: settings.rebalanceThreshold ?? 0.07,
     });
+    if (!result.ok) {
+      setSaveError(result.error);
+      return;
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -114,7 +130,13 @@ export function AllocationDesigner() {
         </div>
       </div>
 
-      <Button className="mt-5 w-full" onClick={save}>
+      {saveError && (
+        <p className="mt-4 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+          {saveError}
+        </p>
+      )}
+
+      <Button className="mt-5 w-full" onClick={save} disabled={!canSave}>
         {saved ? (
           <>
             <Check size={16} /> Saved as your target

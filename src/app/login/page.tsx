@@ -81,6 +81,7 @@ export default function LoginPage() {
           <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-zinc-900/60 p-1">
             {(["signin", "signup"] as Mode[]).map((m) => (
               <button
+                type="button"
                 key={m}
                 onClick={() => {
                   setMode(m);
@@ -168,6 +169,7 @@ export default function LoginPage() {
         <div className="mt-4 text-center text-xs">
           {mode === "forgot" ? (
             <button
+              type="button"
               className="text-zinc-400 hover:text-zinc-200"
               onClick={() => setMode("signin")}
             >
@@ -175,6 +177,7 @@ export default function LoginPage() {
             </button>
           ) : (
             <button
+              type="button"
               className="text-zinc-400 hover:text-zinc-200"
               onClick={() => {
                 setMode("forgot");

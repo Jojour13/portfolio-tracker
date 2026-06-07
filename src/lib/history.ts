@@ -1,11 +1,18 @@
 import type { Asset, Currency, Transaction } from "./types";
-import { convert } from "./portfolio";
+import { convertOrNull } from "./portfolio";
+import { cashFlowTypeForTransaction, isExternalCashFlow } from "./cashFlow";
 
 export interface SeriesPoint {
   date: string; // YYYY-MM-DD
   value: number; // portfolio MTM value in base currency
   /** Net external cash flow that day (deposits/buys +, withdrawals/sells −), base ccy. */
   flow: number;
+  /** True when one or more held assets could not be valued on this point. */
+  partial?: boolean;
+  /** Count of held positions missing price coverage on this point. */
+  missingPrices?: number;
+  /** Count of held positions or flows missing FX conversion on this point. */
+  missingConversions?: number;
 }
 
 type RawSeries = Record<string, { t: number[]; c: number[] }>;
@@ -83,28 +90,59 @@ export function reconstructTimeSeries(
 
   for (const d of dates) {
     let flow = 0;
+    let missingConversions = 0;
     const todays = txByDate.get(d) ?? [];
     for (const t of todays) {
       const a = assetById.get(t.assetId);
       if (!a) continue;
       const signedQty = t.side === "buy" ? t.quantity : -t.quantity;
       qty.set(t.assetId, (qty.get(t.assetId) ?? 0) + signedQty);
+      const cashFlowType = cashFlowTypeForTransaction(a, t);
+      if (a.type === "cash" && !isExternalCashFlow(cashFlowType)) {
+        continue;
+      }
       const cashMoved =
         t.side === "buy"
           ? t.quantity * t.price + t.fee
           : -(t.quantity * t.price - t.fee);
-      flow += convert(cashMoved, a.currency, base, ratesPerUsd);
+      const convertedFlow = convertOrNull(
+        cashMoved,
+        a.currency,
+        base,
+        ratesPerUsd,
+      );
+      if (convertedFlow === null) missingConversions += 1;
+      else flow += convertedFlow;
     }
 
     let value = 0;
+    let missingPrices = 0;
     for (const a of assets) {
       const q = qty.get(a.id) ?? 0;
       if (q === 0) continue;
       const price = a.type === "cash" ? 1 : filled.get(a.id)!.get(d) ?? 0;
-      value += convert(q * price, a.currency, base, ratesPerUsd);
+      if (a.type !== "cash" && price <= 0) {
+        missingPrices += 1;
+        continue;
+      }
+      const convertedValue = convertOrNull(
+        q * price,
+        a.currency,
+        base,
+        ratesPerUsd,
+      );
+      if (convertedValue === null) missingConversions += 1;
+      else value += convertedValue;
     }
 
-    points.push({ date: d, value, flow });
+    points.push({
+      date: d,
+      value,
+      flow,
+      partial: missingPrices > 0 || missingConversions > 0,
+      missingPrices,
+      missingConversions,
+    });
   }
 
   return points;
@@ -152,6 +190,8 @@ export function reconstructIntraday(
   const points: SeriesPoint[] = [];
   for (const k of keys) {
     let value = 0;
+    let missingPrices = 0;
+    let missingConversions = 0;
     for (const a of assets) {
       const q = qty.get(a.id) ?? 0;
       if (q === 0) continue;
@@ -162,9 +202,27 @@ export function reconstructIntraday(
         if (m.has(k)) last.set(a.id, m.get(k)!);
         price = last.get(a.id) ?? 0;
       }
-      value += convert(q * price, a.currency, base, ratesPerUsd);
+      if (a.type !== "cash" && price <= 0) {
+        missingPrices += 1;
+        continue;
+      }
+      const convertedValue = convertOrNull(
+        q * price,
+        a.currency,
+        base,
+        ratesPerUsd,
+      );
+      if (convertedValue === null) missingConversions += 1;
+      else value += convertedValue;
     }
-    points.push({ date: k, value, flow: 0 });
+    points.push({
+      date: k,
+      value,
+      flow: 0,
+      partial: missingPrices > 0 || missingConversions > 0,
+      missingPrices,
+      missingConversions,
+    });
   }
   return points;
 }

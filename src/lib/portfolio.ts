@@ -89,18 +89,49 @@ export function buildPositions(
  * Convert an amount from one currency to another using a USD-based rate table
  * (rates[c] = how many units of c per 1 USD).
  */
+function rateForCurrency(
+  currency: Currency,
+  ratesPerUsd: Record<string, number>,
+): number | null {
+  if (currency === "USD") return 1;
+  const rate = ratesPerUsd[currency];
+  return Number.isFinite(rate) && rate > 0 ? rate : null;
+}
+
+export function canConvert(
+  from: Currency,
+  to: Currency,
+  ratesPerUsd: Record<string, number>,
+): boolean {
+  if (from === to) return true;
+  return (
+    rateForCurrency(from, ratesPerUsd) !== null &&
+    rateForCurrency(to, ratesPerUsd) !== null
+  );
+}
+
+export function convertOrNull(
+  amount: number,
+  from: Currency,
+  to: Currency,
+  ratesPerUsd: Record<string, number>,
+): number | null {
+  if (from === to) return amount;
+  if (!Number.isFinite(amount)) return null;
+  const fromRate = rateForCurrency(from, ratesPerUsd);
+  const toRate = rateForCurrency(to, ratesPerUsd);
+  if (fromRate === null || toRate === null) return null;
+  const inUsd = amount / fromRate;
+  return inUsd * toRate;
+}
+
 export function convert(
   amount: number,
   from: Currency,
   to: Currency,
   ratesPerUsd: Record<string, number>,
 ): number {
-  if (from === to) return amount;
-  const fromRate = from === "USD" ? 1 : ratesPerUsd[from];
-  const toRate = to === "USD" ? 1 : ratesPerUsd[to];
-  if (!fromRate || !toRate) return amount; // graceful fallback
-  const inUsd = amount / fromRate;
-  return inUsd * toRate;
+  return convertOrNull(amount, from, to, ratesPerUsd) ?? 0;
 }
 
 /** Combine positions, live quotes and FX into a fully-valued snapshot. */
@@ -110,6 +141,11 @@ export function valuePortfolio(
   ratesPerUsd: Record<string, number>,
   base: Currency,
   realizedBase = 0,
+  unconvertedRealizedPnlCount = 0,
+  incomeBase = 0,
+  unconvertedIncomeCount = 0,
+  withholdingTaxBase = 0,
+  unconvertedWithholdingTaxCount = 0,
 ): PortfolioSnapshot {
   const valued: ValuedPosition[] = positions.map((p) => {
     const isCash = p.asset.type === "cash";
@@ -117,18 +153,27 @@ export function valuePortfolio(
     const price = isCash ? 1 : quote?.price ?? null;
     const prevClose = isCash ? 1 : quote?.prevClose ?? null;
 
-    const marketValueNative = price !== null ? p.quantity * price : null;
+    const grossMarketValueNative = price !== null ? p.quantity * price : null;
+    const marketValueNative =
+      grossMarketValueNative !== null ? grossMarketValueNative - p.borrowed : null;
     const marketValueBase =
       marketValueNative !== null
-        ? convert(marketValueNative, p.asset.currency, base, ratesPerUsd)
+        ? convertOrNull(marketValueNative, p.asset.currency, base, ratesPerUsd)
         : null;
-    const investedBase = convert(p.invested, p.asset.currency, base, ratesPerUsd);
+    const investedBase = convertOrNull(
+      p.equityInvested,
+      p.asset.currency,
+      base,
+      ratesPerUsd,
+    );
 
     const unrealizedPnlNative =
-      marketValueNative !== null ? marketValueNative - p.invested : null;
+      marketValueNative !== null
+        ? marketValueNative - p.equityInvested
+        : null;
     const unrealizedPnlPct =
-      unrealizedPnlNative !== null && p.invested > 0
-        ? unrealizedPnlNative / p.invested
+      unrealizedPnlNative !== null && p.equityInvested > 0
+        ? unrealizedPnlNative / p.equityInvested
         : null;
     const dayChangePct =
       price !== null && prevClose && prevClose > 0
@@ -167,7 +212,25 @@ export function valuePortfolio(
     (s, v) => s + (v.marketValueBase ?? 0),
     0,
   );
-  const totalInvestedBase = valued.reduce((s, v) => s + v.investedBase, 0);
+  const fullyValued = valued.filter(
+    (v) => v.marketValueBase !== null && v.investedBase !== null,
+  );
+  const totalInvestedBase = fullyValued.reduce(
+    (s, v) => s + v.investedBase!,
+    0,
+  );
+  const unpricedPositionCount = valued.filter(
+    (v) => v.asset.type !== "cash" && v.price === null,
+  ).length;
+  const unconvertedPositionCount = valued.filter((v) => {
+    const hasNativeMarketValue =
+      v.marketValueNative !== null && Math.abs(v.marketValueNative) > 0;
+    const hasNativeCost = Math.abs(v.equityInvested) > 0;
+    return (
+      (hasNativeMarketValue && v.marketValueBase === null) ||
+      (hasNativeCost && v.investedBase === null)
+    );
+  }).length;
 
   // day change in base currency: value moved since previous close
   let dayChangeBase = 0;
@@ -177,8 +240,15 @@ export function valuePortfolio(
       v.dayChangePct !== null &&
       v.asset.type !== "cash"
     ) {
-      const prevValue = v.marketValueBase / (1 + v.dayChangePct);
-      dayChangeBase += v.marketValueBase - prevValue;
+      const nativeDayChange =
+        v.price !== null && v.prevClose !== null
+          ? v.quantity * (v.price - v.prevClose)
+          : null;
+      const convertedDayChange =
+        nativeDayChange !== null
+          ? convertOrNull(nativeDayChange, v.asset.currency, base, ratesPerUsd)
+          : null;
+      dayChangeBase += convertedDayChange ?? 0;
     }
   }
 
@@ -188,7 +258,10 @@ export function valuePortfolio(
   }
   valued.sort((a, b) => (b.marketValueBase ?? 0) - (a.marketValueBase ?? 0));
 
-  const totalUnrealizedPnlBase = totalValueBase - totalInvestedBase;
+  const totalUnrealizedPnlBase = fullyValued.reduce(
+    (s, v) => s + (v.marketValueBase! - v.investedBase!),
+    0,
+  );
 
   return {
     positions: valued,
@@ -198,10 +271,23 @@ export function valuePortfolio(
     totalUnrealizedPnlPct:
       totalInvestedBase > 0 ? totalUnrealizedPnlBase / totalInvestedBase : 0,
     totalRealizedBase: realizedBase,
+    totalIncomeBase: incomeBase,
+    totalWithholdingTaxBase: withholdingTaxBase,
     dayChangeBase,
     dayChangePct:
       totalValueBase - dayChangeBase > 0
         ? dayChangeBase / (totalValueBase - dayChangeBase)
         : 0,
+    valuationIncomplete:
+      unpricedPositionCount > 0 ||
+      unconvertedPositionCount > 0 ||
+      unconvertedRealizedPnlCount > 0 ||
+      unconvertedIncomeCount > 0 ||
+      unconvertedWithholdingTaxCount > 0,
+    unpricedPositionCount,
+    unconvertedPositionCount,
+    unconvertedRealizedPnlCount,
+    unconvertedIncomeCount,
+    unconvertedWithholdingTaxCount,
   };
 }

@@ -4,6 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Asset, Currency, Transaction } from "@/lib/types";
 import { reconstructTimeSeries } from "@/lib/history";
+import {
+  aliasYahooHistorySeries,
+  yahooHistorySymbolsForAssets,
+} from "@/lib/historySymbols";
 
 /**
  * Fetches 5y of daily closes for all priced assets and reconstructs the full
@@ -17,14 +21,7 @@ export function useHistory(
   base: Currency,
 ) {
   const symbols = useMemo(
-    () =>
-      [
-        ...new Set(
-          assets.filter((a) => a.quoteSource === "yahoo").map((a) => a.quoteId),
-        ),
-      ]
-        .sort()
-        .join(","),
+    () => yahooHistorySymbolsForAssets(assets).join(","),
     [assets],
   );
 
@@ -32,7 +29,9 @@ export function useHistory(
     queryKey: ["history", symbols],
     queryFn: async () => {
       if (!symbols) return { series: {} };
-      const res = await fetch(`/api/history?symbols=${symbols}&range=5y`);
+      const res = await fetch(
+        `/api/history?symbols=${encodeURIComponent(symbols)}&range=5y`,
+      );
       if (!res.ok) throw new Error(`history ${res.status}`);
       return res.json();
     },
@@ -41,7 +40,7 @@ export function useHistory(
   });
 
   const points = useMemo(() => {
-    const series = q.data?.series ?? {};
+    const series = aliasYahooHistorySeries(assets, q.data?.series ?? {});
     if (!assets.length) return [];
     return reconstructTimeSeries(
       assets,
@@ -52,5 +51,11 @@ export function useHistory(
     );
   }, [q.data, assets, transactions, ratesPerUsd, base]);
 
-  return { points, isLoading: q.isLoading, isError: q.isError };
+  return {
+    points,
+    isLoading: q.isLoading,
+    isError: q.isError,
+    error: q.error,
+    refetch: q.refetch,
+  };
 }
