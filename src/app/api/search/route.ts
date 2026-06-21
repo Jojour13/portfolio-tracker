@@ -128,10 +128,37 @@ async function searchYahooListed(
   }
 }
 
-async function searchCrypto(q: string): Promise<SearchResult[]> {
-  // Yahoo Finance also covers crypto (symbols like "BTC-USD") and is more
-  // widely reachable than CoinGecko. We reuse it so crypto and other
-  // Yahoo-backed assets share one quote path and get a previous close.
+async function searchCryptoCoinGecko(q: string): Promise<SearchResult[]> {
+  // CoinGecko covers ~15k coins (incl. newer tokens like JUP, ASTER) that
+  // Yahoo does not list. Priced via /api/crypto using the CoinGecko id.
+  try {
+    const res = await fetchWithTimeout(
+      `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(q)}`,
+      { next: { revalidate: 300 } },
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const coins = (data?.coins ?? []) as any[];
+    return coins
+      .filter((c) => c?.id && c?.symbol)
+      .slice(0, 10)
+      .map((c) => ({
+        type: "crypto" as const,
+        symbol: String(c.symbol).toUpperCase(),
+        name: c.name || c.id,
+        currency: "USD" as const,
+        quoteSource: "coingecko" as const,
+        quoteId: c.id,
+        lotSize: 1,
+        exchange: c.market_cap_rank ? `Rank #${c.market_cap_rank}` : "Crypto",
+      }));
+  } catch {
+    return [];
+  }
+}
+
+async function searchCryptoYahoo(q: string): Promise<SearchResult[]> {
+  // Fallback for networks where CoinGecko is unreachable — covers the majors.
   try {
     const res = await fetchWithTimeout(
       `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=10&newsCount=0`,
@@ -164,6 +191,12 @@ async function searchCrypto(q: string): Promise<SearchResult[]> {
   } catch {
     return [];
   }
+}
+
+async function searchCrypto(q: string): Promise<SearchResult[]> {
+  const coingecko = await searchCryptoCoinGecko(q);
+  if (coingecko.length > 0) return coingecko;
+  return searchCryptoYahoo(q);
 }
 
 export async function GET(req: NextRequest) {
